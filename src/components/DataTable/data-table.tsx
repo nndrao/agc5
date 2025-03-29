@@ -923,14 +923,12 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
         onApplySettings={handleApplySettings}
       />
 
-      {gridReady && (
-        <ColumnSettingsDialog
-          open={columnSettingsOpen}
-          onOpenChange={setColumnSettingsOpen}
-          gridRef={gridRef}
-          fallbackColumnDefs={columnDefs}
-        />
-      )}
+      <ColumnSettingsDialog
+        open={columnSettingsOpen}
+        onOpenChange={setColumnSettingsOpen}
+        gridRef={gridRef}
+        fallbackColumnDefs={columnDefs}
+      />
     </div>
   );
 }

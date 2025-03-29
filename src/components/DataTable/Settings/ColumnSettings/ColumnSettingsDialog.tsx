@@ -302,22 +302,22 @@ export function ColumnSettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-[1000px] p-0" hideCloseButton>
-        <div className="flex h-[600px]">
+      <DialogContent className="max-w-[1000px] p-0 backdrop-blur-sm" hideCloseButton>
+        <div className="flex h-[600px] rounded-lg overflow-hidden border-0">
           {/* Left Panel - Column Tree */}
-          <div className="w-[280px] border-r flex flex-col">
-            <div className="p-2 border-b bg-muted/40">
+          <div className="w-[280px] border-r flex flex-col bg-gray-50 dark:bg-gray-850">
+            <div className="p-3 border-b bg-gradient-to-r from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-850 shadow-sm">
               <div className="relative">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search columns..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8 text-sm"
+                  className="pl-8 text-sm border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900"
                 />
               </div>
             </div>
-            <ScrollArea className="flex-1">
+            <ScrollArea className="flex-1 bg-white/50 dark:bg-gray-900/50">
               <ColumnTree
                 columns={columns}
                 columnStates={columnStates}
@@ -331,14 +331,14 @@ export function ColumnSettingsDialog({
           {/* Right Panel - Column Editor */}
           <div className="flex-1 flex flex-col">
             {/* Header */}
-            <div className="flex items-center justify-between py-2 px-3 border-b bg-muted/40">
+            <div className="flex items-center justify-between py-3 px-4 border-b bg-gradient-to-r from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-850 shadow-sm">
               <div className="flex items-center space-x-2">
-                <Columns className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">Columns</span>
+                <Columns className="h-4 w-4 text-primary" />
+                <span className="text-sm font-medium text-muted-foreground">Columns</span>
                 {selectedColumn && (
                   <>
                     <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                    <span className="text-sm font-medium">
+                    <span className="text-sm font-semibold text-foreground">
                       {columnStates[selectedColumn]?.headerName || selectedColumn}
                     </span>
                   </>
@@ -347,7 +347,7 @@ export function ColumnSettingsDialog({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7"
+                className="h-7 w-7 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
                 onClick={handleClose}
               >
                 <X className="h-4 w-4" />
@@ -355,7 +355,7 @@ export function ColumnSettingsDialog({
             </div>
 
             {/* Content */}
-            <ScrollArea className="flex-1">
+            <ScrollArea className="flex-1 bg-white dark:bg-gray-900">
               {selectedColumn ? (
                 <ColumnEditor
                   columnId={selectedColumn}
@@ -370,10 +370,10 @@ export function ColumnSettingsDialog({
             </ScrollArea>
 
             {/* Footer */}
-            <div className="flex items-center justify-between py-2 px-3 border-t bg-muted/40">
+            <div className="flex items-center justify-between py-3 px-4 border-t bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-850 dark:to-gray-800 shadow-sm">
               <div className="flex items-center space-x-2">
                 {hasChanges && (
-                  <Badge variant="outline" className="text-yellow-600 border-yellow-600 text-xs py-0">
+                  <Badge variant="outline" className="text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20 border-yellow-300 dark:border-yellow-700 text-xs py-0 px-2 rounded-md">
                     Unsaved Changes
                   </Badge>
                 )}
@@ -391,7 +391,7 @@ export function ColumnSettingsDialog({
                   onClick={handleApply}
                   size="sm"
                   disabled={!hasChanges}
-                  className="text-sm"
+                  className="text-sm bg-primary hover:bg-primary/90"
                 >
                   <Save className="mr-2 h-3 w-3" />
                   Save Changes

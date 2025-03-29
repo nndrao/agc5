@@ -252,8 +252,8 @@ export function GeneralSettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-[900px] p-0" hideCloseButton>
-        <div className="flex h-[600px]">
+      <DialogContent className="max-w-[900px] p-0 backdrop-blur-sm" hideCloseButton>
+        <div className="flex h-[600px] rounded-lg overflow-hidden border-0">
           <SettingsSidebar
             sections={sections}
             activeSection={activeSection}
@@ -262,17 +262,17 @@ export function GeneralSettingsDialog({
 
           <div className="flex-1 flex flex-col">
             {/* Header */}
-            <div className="flex items-center justify-between py-2 px-3 border-b bg-muted/40">
+            <div className="flex items-center justify-between py-3 px-4 bg-gradient-to-r from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-850 border-b shadow-sm">
               <div className="flex items-center space-x-2">
-                <Settings2 className="h-4 w-4 text-muted-foreground" />
-                <span className="text-[14px] text-muted-foreground">Settings</span>
+                <Settings2 className="h-4 w-4 text-primary" />
+                <span className="text-[14px] text-muted-foreground font-medium">Settings</span>
                 <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                <h3 className="text-[14px] font-medium">{currentSection?.label}</h3>
+                <h3 className="text-[14px] font-semibold text-foreground">{currentSection?.label}</h3>
               </div>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7"
+                className="h-7 w-7 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
                 onClick={handleClose}
               >
                 <X className="h-4 w-4" />
@@ -280,17 +280,17 @@ export function GeneralSettingsDialog({
             </div>
 
             {/* Content */}
-            <ScrollArea className="flex-1 min-h-0">
-              <div className="p-4 text-[14px]">
+            <ScrollArea className="flex-1 min-h-0 bg-white dark:bg-gray-900">
+              <div className="p-5 text-[14px]">
                 {renderSectionContent()}
               </div>
             </ScrollArea>
 
             {/* Footer */}
-            <div className="flex items-center justify-between py-2 px-3 border-t bg-muted/40">
+            <div className="flex items-center justify-between py-3 px-4 border-t bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-850 dark:to-gray-800 shadow-sm">
               <div className="flex items-center space-x-2">
                 {hasChanges && (
-                  <Badge variant="outline" className="text-yellow-600 border-yellow-600 text-[14px] py-0">
+                  <Badge variant="outline" className="text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20 border-yellow-300 dark:border-yellow-700 text-[14px] py-0 px-2 rounded-md">
                     Unsaved Changes
                   </Badge>
                 )}
@@ -308,7 +308,7 @@ export function GeneralSettingsDialog({
                   onClick={handleApply}
                   size="sm"
                   disabled={!hasChanges}
-                  className="text-[14px]"
+                  className="text-[14px] bg-primary hover:bg-primary/90"
                 >
                   <Save className="mr-2 h-3 w-3" />
                   Save Changes
