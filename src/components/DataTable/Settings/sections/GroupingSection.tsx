@@ -22,6 +22,7 @@ export function GroupingSection({ settings, onSettingChange }: SettingsSectionPr
             <Select
               value={settings.groupDisplayType}
               onValueChange={(value) => onSettingChange('groupDisplayType', value as 'singleColumn' | 'multipleColumns' | 'groupRows' | 'custom')}
+              defaultValue="groupRows"
             >
               <SelectTrigger>
                 <SelectValue />
@@ -36,15 +37,35 @@ export function GroupingSection({ settings, onSettingChange }: SettingsSectionPr
           </div>
 
           <div>
+            <Label className="font-medium">Row Group Panel</Label>
+            <p className="text-sm text-muted-foreground mb-2">
+              Control when to show the row group panel
+            </p>
+            <Select
+              value={settings.rowGroupPanelShow}
+              onValueChange={(value) => onSettingChange('rowGroupPanelShow', value as 'always' | 'onlyWhenGrouping' | 'never')}
+              defaultValue="always"
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="always">Always</SelectItem>
+                <SelectItem value="onlyWhenGrouping">Only When Grouping</SelectItem>
+                <SelectItem value="never">Never</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
             <Label className="font-medium">Default Expanded Level</Label>
             <p className="text-sm text-muted-foreground mb-2">
-              Number of group levels to expand by default
+              Number of group levels to expand by default. Use -1 to expand all levels.
             </p>
             <Input
               type="number"
               value={settings.groupDefaultExpanded}
               onChange={(e) => onSettingChange('groupDefaultExpanded', parseInt(e.target.value))}
-              min={0}
             />
           </div>
         </div>

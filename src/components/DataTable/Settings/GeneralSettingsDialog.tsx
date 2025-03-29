@@ -16,6 +16,10 @@ import {
   Save,
   X,
   ChevronRight,
+  Download,
+  Columns as ColumnsIcon,
+  BarChart4,
+  TableProperties
 } from "lucide-react";
 import { useState } from "react";
 import { SettingsSidebar } from "./SettingsSidebar";
@@ -28,6 +32,10 @@ import {
   AppearanceSection,
   GroupingSection,
   SortingSection,
+  ExportSection,
+  ColumnControlSection,
+  AdvancedSection,
+  DefaultColumnSection,
 } from "./sections";
 import type { GridSettings } from "./types";
 import { cn } from "@/lib/utils";
@@ -41,6 +49,10 @@ const sections = [
   { id: 'appearance', icon: Palette, label: 'Appearance', description: 'Adjust visual styling and themes' },
   { id: 'grouping', icon: FolderKanban, label: 'Row Grouping', description: 'Set up row grouping and aggregation' },
   { id: 'sorting', icon: ArrowDownWideNarrow, label: 'Sorting', description: 'Configure sorting behavior and options' },
+  { id: 'defaultcol', icon: TableProperties, label: 'Default Columns', description: 'Set default properties for all columns' },
+  { id: 'export', icon: Download, label: 'Export/Import', description: 'Configure data export and import options' },
+  { id: 'columns', icon: ColumnsIcon, label: 'Column Controls', description: 'Configure column behavior and sizing' },
+  { id: 'advanced', icon: BarChart4, label: 'Advanced', description: 'Configure advanced and enterprise features' },
 ];
 
 interface GeneralSettingsDialogProps {
@@ -71,6 +83,10 @@ export function GeneralSettingsDialog({
     suppressRowVirtualisation: false,
     domLayout: 'normal',
     ensureDomOrder: false,
+    alwaysShowVerticalScroll: false,
+    suppressBrowserResizeObserver: false,
+    enableRtl: false,
+    suppressColumnMoveAnimation: false,
 
     // Data and State
     pagination: true,
@@ -81,6 +97,11 @@ export function GeneralSettingsDialog({
     enableFillHandle: true,
     suppressRowDrag: false,
     suppressMovableColumns: false,
+    immutableData: false,
+    deltaRowDataMode: false,
+    rowBuffer: 10,
+    rowDragManaged: false,
+    batchUpdateWaitMillis: 50,
 
     // Selection
     rowSelection: 'multiple',
@@ -98,6 +119,9 @@ export function GeneralSettingsDialog({
     enterMovesDownAfterEdit: true,
     undoRedoCellEditing: true,
     undoRedoCellEditingLimit: 10,
+    stopEditingWhenCellsLoseFocus: true,
+    enterNavigatesVertically: true,
+    tabNavigatesVertically: false,
 
     // Filtering
     floatingFilter: true,
@@ -114,6 +138,9 @@ export function GeneralSettingsDialog({
     suppressCopySingleCellRanges: false,
     clipboardDelimiter: '\t',
     enableCellTextSelection: true,
+    enableCellChangeFlash: true,
+    tooltipShowDelay: 1000,
+    tooltipHideDelay: 10000,
 
     // Row Grouping
     groupDefaultExpanded: 0,
@@ -121,7 +148,7 @@ export function GeneralSettingsDialog({
     groupIncludeFooter: false,
     groupIncludeTotalFooter: false,
     showOpenedGroup: true,
-    rowGroupPanelShow: true,
+    rowGroupPanelShow: 'always',
     enableRowGroup: true,
     suppressDragLeaveHidesColumns: false,
 
@@ -133,6 +160,33 @@ export function GeneralSettingsDialog({
 
     // Advanced Filtering
     excludeChildrenWhenTreeDataFiltering: false,
+    
+    // Export/Import
+    suppressCsvExport: false,
+    suppressExcelExport: false,
+    
+    // Column Controls
+    autoSizePadding: 20,
+    colResizeDefault: 'shift',
+    maintainColumnOrder: true,
+    
+    // Advanced
+    enableCharts: false,
+    suppressAriaColCount: false,
+    suppressAriaRowCount: false,
+    
+    // Default Column Definition
+    defaultColEditable: true,
+    defaultColResizable: true,
+    defaultColSortable: true,
+    defaultColFilter: true,
+    defaultColFilterParams: {},
+    defaultColFlex: 1,
+    defaultColMinWidth: 100,
+    defaultColMaxWidth: null,
+    defaultColAutoHeight: false,
+    defaultColWrapText: false,
+    defaultColCellStyle: {},
   });
 
   const handleSettingChange = <K extends keyof GridSettings>(
@@ -183,6 +237,14 @@ export function GeneralSettingsDialog({
         return <GroupingSection settings={settings} onSettingChange={handleSettingChange} />;
       case 'sorting':
         return <SortingSection settings={settings} onSettingChange={handleSettingChange} />;
+      case 'defaultcol':
+        return <DefaultColumnSection settings={settings} onSettingChange={handleSettingChange} />;
+      case 'export':
+        return <ExportSection settings={settings} onSettingChange={handleSettingChange} />;
+      case 'columns':
+        return <ColumnControlSection settings={settings} onSettingChange={handleSettingChange} />;
+      case 'advanced':
+        return <AdvancedSection settings={settings} onSettingChange={handleSettingChange} />;
       default:
         return null;
     }

@@ -16,12 +16,14 @@ interface ColumnSettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   gridRef: React.RefObject<AgGridReact>;
+  fallbackColumnDefs?: any[];
 }
 
 export function ColumnSettingsDialog({
   open,
   onOpenChange,
-  gridRef
+  gridRef,
+  fallbackColumnDefs = []
 }: ColumnSettingsDialogProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [columns, setColumns] = useState<ColumnDefinition[]>([]);
@@ -31,106 +33,188 @@ export function ColumnSettingsDialog({
   const initialStateRef = useRef<Record<string, ColumnState>>({});
 
   // Initialize column state from grid
-  /*
   useEffect(() => {
-    if (!open || !gridRef.current?.columnApi) return;
-
-    const columnApi = gridRef.current.columnApi;
-    const allColumns = columnApi.getAllColumns() || [];
+    if (!open) return;
     
-    // Reset states
-    const states: Record<string, ColumnState> = {};
-    const columnDefs: ColumnDefinition[] = [];
+    console.log('Dialog opened, initializing column state');
+    console.log('Grid ref available:', !!gridRef.current);
 
-    allColumns.forEach(col => {
-      const colDef = col.getColDef();
-      const colId = col.getId();
-      const colState = columnApi.getColumnState().find(s => s.colId === colId);
+    // Increased delay to ensure grid is fully initialized
+    const timeoutId = setTimeout(() => {
+      console.log('Inside timeout callback');
+      console.log('Grid ref:', gridRef.current);
+      console.log('Grid API available:', !!gridRef.current?.api);
+      console.log('Column API available directly:', !!gridRef.current?.columnApi);
       
-      // Create column state
-      states[colId] = {
-        visible: col.isVisible(),
-        width: col.getActualWidth(),
-        pinned: col.getPinned(),
-        sort: colState?.sort || null,
-        position: columnApi.getColumnIndex(colId),
-        headerName: colDef.headerName || colDef.field || '',
-        field: colDef.field || '',
-        filter: colDef.filter !== false,
-        resizable: colDef.resizable !== false,
-        sortable: colDef.sortable !== false,
-        headerAlignment: colDef.headerClass || 'left',
-        cellAlignment: colDef.cellClass || 'left',
-      };
+      // Try to get columnApi through new method if not available directly
+      const columnApi = gridRef.current?.columnApi || 
+                       (gridRef.current?.api && gridRef.current.api.getColumnApi && 
+                        gridRef.current.api.getColumnApi());
+                        
+      console.log('Column API available after fallback check:', !!columnApi);
+      
+      if (!gridRef.current || !gridRef.current.api || !columnApi) {
+        console.warn('Grid or APIs not available');
+        
+        // First try fallback from props of grid instance
+        if (gridRef.current && gridRef.current.props && gridRef.current.props.columnDefs) {
+          console.log('Falling back to columnDefs from props:', gridRef.current.props.columnDefs);
+          
+          const fallbackColumnDefs = gridRef.current.props.columnDefs;
+          const states: Record<string, ColumnState> = {};
+          const columnDefs: ColumnDefinition[] = [];
+          
+          fallbackColumnDefs.forEach((colDef, index) => {
+            const field = colDef.field || '';
+            const colId = colDef.field || `col-${index}`;
+            
+            // Create column state
+            states[colId] = {
+              visible: true,
+              width: 200,
+              pinned: null,
+              sort: null,
+              position: index,
+              headerName: colDef.headerName || field || '',
+              field: field,
+              filter: colDef.filter !== false,
+              resizable: colDef.resizable !== false,
+              sortable: colDef.sortable !== false,
+              headerAlignment: colDef.headerClass || 'left',
+              cellAlignment: colDef.cellClass || 'left',
+            };
+            
+            // Create column definition
+            columnDefs.push({
+              id: colId,
+              field: field,
+              headerName: colDef.headerName || field || '',
+              children: [],
+            });
+          });
+          
+          console.log('Created fallback columns:', columnDefs);
+          
+          // Update state
+          setColumnStates(states);
+          initialStateRef.current = JSON.parse(JSON.stringify(states));
+          setColumns(columnDefs);
+          
+          // Clear selected column
+          setSelectedColumn(null);
+          return;
+        }
+        // Final fallback using directly passed columnDefs
+        else if (fallbackColumnDefs && fallbackColumnDefs.length > 0) {
+          console.log('Using directly passed fallbackColumnDefs:', fallbackColumnDefs);
+          
+          const states: Record<string, ColumnState> = {};
+          const columnDefs: ColumnDefinition[] = [];
+          
+          fallbackColumnDefs.forEach((colDef, index) => {
+            const field = colDef.field || '';
+            const colId = colDef.field || `col-${index}`;
+            
+            // Create column state
+            states[colId] = {
+              visible: true,
+              width: 200,
+              pinned: null,
+              sort: null,
+              position: index,
+              headerName: colDef.headerName || field || '',
+              field: field,
+              filter: colDef.filter !== false,
+              resizable: colDef.resizable !== false,
+              sortable: colDef.sortable !== false,
+              headerAlignment: colDef.headerClass || 'left',
+              cellAlignment: colDef.cellClass || 'left',
+            };
+            
+            // Create column definition
+            columnDefs.push({
+              id: colId,
+              field: field,
+              headerName: colDef.headerName || field || '',
+              children: [],
+            });
+          });
+          
+          console.log('Created fallback columns from direct props:', columnDefs);
+          
+          // Update state
+          setColumnStates(states);
+          initialStateRef.current = JSON.parse(JSON.stringify(states));
+          setColumns(columnDefs);
+          
+          // Clear selected column
+          setSelectedColumn(null);
+          return;
+        }
+        
+        return;
+      }
+      
+      const allColumns = columnApi.getAllColumns() || [];
+      
+      console.log('All columns:', allColumns);
+      
+      if (!allColumns || allColumns.length === 0) {
+        console.warn('No columns found in the grid');
+        return;
+      }
+      
+      // Reset states
+      const states: Record<string, ColumnState> = {};
+      const columnDefs: ColumnDefinition[] = [];
 
-      // Create column definition
-      columnDefs.push({
-        id: colId,
-        field: colDef.field || '',
-        headerName: colDef.headerName || colDef.field || '',
-        children: [], // Add children if you have grouped columns
+      allColumns.forEach(col => {
+        const colDef = col.getColDef();
+        const colId = col.getId();
+        const colState = columnApi.getColumnState().find(s => s.colId === colId);
+        
+        console.log('Processing column:', colId, colDef);
+        
+        // Create column state
+        states[colId] = {
+          visible: col.isVisible(),
+          width: col.getActualWidth(),
+          pinned: col.getPinned(),
+          sort: colState?.sort || null,
+          position: columnApi.getColumnIndex(colId),
+          headerName: colDef.headerName || colDef.field || '',
+          field: colDef.field || '',
+          filter: colDef.filter !== false,
+          resizable: colDef.resizable !== false,
+          sortable: colDef.sortable !== false,
+          headerAlignment: colDef.headerClass || 'left',
+          cellAlignment: colDef.cellClass || 'left',
+        };
+
+        // Create column definition
+        columnDefs.push({
+          id: colId,
+          field: colDef.field || '',
+          headerName: colDef.headerName || colDef.field || '',
+          children: [], // Add children if you have grouped columns
+        });
       });
-    });
 
-    // Update state
-    setColumnStates(states);
-    initialStateRef.current = JSON.parse(JSON.stringify(states));
-    setColumns(columnDefs);
+      console.log('Processed states:', states);
+      console.log('Processed column definitions:', columnDefs);
+
+      // Update state
+      setColumnStates(states);
+      initialStateRef.current = JSON.parse(JSON.stringify(states));
+      setColumns(columnDefs);
+      
+      // Clear selected column
+      setSelectedColumn(null);
+    }, 300); // Increased delay to ensure grid is ready
     
-    // Clear selected column
-    setSelectedColumn(null);
-  }, [open, gridRef]);
-*/
+    return () => clearTimeout(timeoutId);
+  }, [open, gridRef, fallbackColumnDefs]);
 
-
-  // Initialize column state from grid
-useEffect(() => {
-  if (!open) return;
-
-  console.log('Grid ref:', gridRef.current);
-  console.log('Column API available:', !!gridRef.current?.columnApi);
-  
-  // Wait for next render cycle to ensure grid is fully initialized
-  const timeoutId = setTimeout(() => {
-    if (!gridRef.current || !gridRef.current.api || !gridRef.current.columnApi) {
-      console.warn('Grid or APIs not available');
-      return;
-    }
-
-  console.log('All columns:', gridRef.current.columnApi.getAllColumns());
-    console.log('Column state:', gridRef.current.columnApi.getColumnState());
-
-    
-    const columnApi = gridRef.current.columnApi;
-    const allColumns = columnApi.getAllColumns();
-    
-    if (!allColumns || allColumns.length === 0) {
-      console.warn('No columns found in the grid');
-      return;
-    }
-    
-    // Reset states
-    const states: Record<string, ColumnState> = {};
-    const columnDefs: ColumnDefinition[] = [];
-
-    allColumns.forEach(col => {
-      // Rest of your code...
-    });
-
-    // Update state
-    setColumnStates(states);
-    initialStateRef.current = JSON.parse(JSON.stringify(states));
-    setColumns(columnDefs);
-    
-    // Clear selected column
-    setSelectedColumn(null);
-  }, 100); // Short delay to ensure grid is ready
-  
-  return () => clearTimeout(timeoutId);
-}, [open, gridRef]);
-
-
-  
   // Debounced search
   const debouncedSearch = useCallback(
     debounce((query: string) => {

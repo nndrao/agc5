@@ -86,6 +86,78 @@ export function DataSection({ settings, onSettingChange }: SettingsSectionProps)
               onCheckedChange={(value) => onSettingChange('suppressMovableColumns', !value)}
             />
           </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <Label className="font-medium">Row Drag Managed</Label>
+              <p className="text-sm text-muted-foreground">
+                Enable managed row dragging
+              </p>
+            </div>
+            <Switch
+              checked={settings.rowDragManaged}
+              onCheckedChange={(value) => onSettingChange('rowDragManaged', value)}
+            />
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <Label className="text-base font-semibold">Performance</Label>
+          <p className="text-sm text-muted-foreground mb-3">
+            Configure performance options
+          </p>
+          
+          <div className="flex items-center justify-between">
+            <div>
+              <Label className="font-medium">Immutable Data</Label>
+              <p className="text-sm text-muted-foreground">
+                Optimize for immutable data updates
+              </p>
+            </div>
+            <Switch
+              checked={settings.immutableData}
+              onCheckedChange={(value) => onSettingChange('immutableData', value)}
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <Label className="font-medium">Delta Row Mode</Label>
+              <p className="text-sm text-muted-foreground">
+                Only update changed rows
+              </p>
+            </div>
+            <Switch
+              checked={settings.deltaRowDataMode}
+              onCheckedChange={(value) => onSettingChange('deltaRowDataMode', value)}
+            />
+          </div>
+
+          <div>
+            <Label className="font-medium">Row Buffer</Label>
+            <p className="text-sm text-muted-foreground mb-2">
+              Extra rows to render for smoother scrolling
+            </p>
+            <Input
+              type="number"
+              value={settings.rowBuffer}
+              onChange={(e) => onSettingChange('rowBuffer', parseInt(e.target.value))}
+              min={1}
+            />
+          </div>
+
+          <div>
+            <Label className="font-medium">Batch Update Wait (ms)</Label>
+            <p className="text-sm text-muted-foreground mb-2">
+              Milliseconds to wait before processing updates
+            </p>
+            <Input
+              type="number"
+              value={settings.batchUpdateWaitMillis}
+              onChange={(e) => onSettingChange('batchUpdateWaitMillis', parseInt(e.target.value))}
+              min={0}
+            />
+          </div>
         </div>
       </div>
     </div>

@@ -157,6 +157,45 @@ export function DisplaySection({ settings, onSettingChange }: SettingsSectionPro
               onCheckedChange={(value) => onSettingChange('suppressRowClickSelection', !value)}
             />
           </div>
+
+          <div className="flex items-center justify-between group">
+            <div>
+              <Label className="text-[14px] font-medium">Always Show Scrollbar</Label>
+              <p className="text-[12px] text-muted-foreground">
+                Always display vertical scrollbar
+              </p>
+            </div>
+            <Switch
+              checked={settings.alwaysShowVerticalScroll}
+              onCheckedChange={(value) => onSettingChange('alwaysShowVerticalScroll', value)}
+            />
+          </div>
+
+          <div className="flex items-center justify-between group">
+            <div>
+              <Label className="text-[14px] font-medium">Right-to-Left Layout</Label>
+              <p className="text-[12px] text-muted-foreground">
+                Enable RTL layout direction
+              </p>
+            </div>
+            <Switch
+              checked={settings.enableRtl}
+              onCheckedChange={(value) => onSettingChange('enableRtl', value)}
+            />
+          </div>
+
+          <div className="flex items-center justify-between group">
+            <div>
+              <Label className="text-[14px] font-medium">Disable Column Animation</Label>
+              <p className="text-[12px] text-muted-foreground">
+                Turn off column move animation
+              </p>
+            </div>
+            <Switch
+              checked={settings.suppressColumnMoveAnimation}
+              onCheckedChange={(value) => onSettingChange('suppressColumnMoveAnimation', value)}
+            />
+          </div>
         </div>
       </div>
     </div>

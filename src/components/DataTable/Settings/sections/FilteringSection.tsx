@@ -15,19 +15,6 @@ export function FilteringSection({ settings, onSettingChange }: SettingsSectionP
 
           <div className="flex items-center justify-between">
             <div>
-              <Label className="font-medium">Floating Filter</Label>
-              <p className="text-sm text-muted-foreground">
-                Show floating filter inputs
-              </p>
-            </div>
-            <Switch
-              checked={settings.floatingFilter}
-              onCheckedChange={(value) => onSettingChange('floatingFilter', value)}
-            />
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div>
               <Label className="font-medium">Keep Menu Visible</Label>
               <p className="text-sm text-muted-foreground">
                 Prevent filter menu from hiding

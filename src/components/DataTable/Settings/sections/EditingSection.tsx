@@ -94,6 +94,45 @@ export function EditingSection({ settings, onSettingChange }: SettingsSectionPro
               onCheckedChange={(value) => onSettingChange('enterMovesDownAfterEdit', value)}
             />
           </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <Label className="font-medium">Stop Editing When Focus Lost</Label>
+              <p className="text-sm text-muted-foreground">
+                Exit edit mode when clicking elsewhere
+              </p>
+            </div>
+            <Switch
+              checked={settings.stopEditingWhenCellsLoseFocus}
+              onCheckedChange={(value) => onSettingChange('stopEditingWhenCellsLoseFocus', value)}
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <Label className="font-medium">Enter Navigates Vertically</Label>
+              <p className="text-sm text-muted-foreground">
+                Navigate up/down with Enter key
+              </p>
+            </div>
+            <Switch
+              checked={settings.enterNavigatesVertically}
+              onCheckedChange={(value) => onSettingChange('enterNavigatesVertically', value)}
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <Label className="font-medium">Tab Navigates Vertically</Label>
+              <p className="text-sm text-muted-foreground">
+                Navigate up/down with Tab key
+              </p>
+            </div>
+            <Switch
+              checked={settings.tabNavigatesVertically}
+              onCheckedChange={(value) => onSettingChange('tabNavigatesVertically', value)}
+            />
+          </div>
         </div>
 
         <div className="space-y-4">

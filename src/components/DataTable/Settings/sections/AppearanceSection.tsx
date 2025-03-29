@@ -58,6 +58,45 @@ export function AppearanceSection({ settings, onSettingChange }: SettingsSection
               onCheckedChange={(value) => onSettingChange('enableBrowserTooltips', value)}
             />
           </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <Label className="font-medium">Cell Change Flash</Label>
+              <p className="text-sm text-muted-foreground">
+                Flash cells when values change
+              </p>
+            </div>
+            <Switch
+              checked={settings.enableCellChangeFlash}
+              onCheckedChange={(value) => onSettingChange('enableCellChangeFlash', value)}
+            />
+          </div>
+          
+          <div>
+            <Label className="font-medium">Tooltip Show Delay (ms)</Label>
+            <p className="text-sm text-muted-foreground mb-2">
+              Delay before showing tooltips
+            </p>
+            <Input
+              type="number"
+              value={settings.tooltipShowDelay}
+              onChange={(e) => onSettingChange('tooltipShowDelay', parseInt(e.target.value))}
+              min={0}
+            />
+          </div>
+          
+          <div>
+            <Label className="font-medium">Tooltip Hide Delay (ms)</Label>
+            <p className="text-sm text-muted-foreground mb-2">
+              Delay before hiding tooltips
+            </p>
+            <Input
+              type="number"
+              value={settings.tooltipHideDelay}
+              onChange={(e) => onSettingChange('tooltipHideDelay', parseInt(e.target.value))}
+              min={0}
+            />
+          </div>
         </div>
       </div>
 

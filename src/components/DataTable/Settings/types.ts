@@ -13,7 +13,11 @@ export interface GridSettings {
   suppressRowVirtualisation: boolean;
   domLayout: 'normal' | 'autoHeight' | 'print';
   ensureDomOrder: boolean;
-
+  alwaysShowVerticalScroll: boolean;
+  suppressBrowserResizeObserver: boolean;
+  enableRtl: boolean;
+  suppressColumnMoveAnimation: boolean;
+  
   // Data and State
   pagination: boolean;
   paginationPageSize: number;
@@ -23,6 +27,11 @@ export interface GridSettings {
   enableFillHandle: boolean;
   suppressRowDrag: boolean;
   suppressMovableColumns: boolean;
+  immutableData: boolean;
+  deltaRowDataMode: boolean;
+  rowBuffer: number;
+  rowDragManaged: boolean;
+  batchUpdateWaitMillis: number;
 
   // Selection
   rowSelection: 'single' | 'multiple';
@@ -40,9 +49,11 @@ export interface GridSettings {
   enterMovesDownAfterEdit: boolean;
   undoRedoCellEditing: boolean;
   undoRedoCellEditingLimit: number;
+  stopEditingWhenCellsLoseFocus: boolean;
+  enterNavigatesVertically: boolean;
+  tabNavigatesVertically: boolean;
 
   // Filtering
-  floatingFilter: boolean;
   suppressMenuHide: boolean;
   quickFilterText: string;
   cacheQuickFilter: boolean;
@@ -56,6 +67,9 @@ export interface GridSettings {
   suppressCopySingleCellRanges: boolean;
   clipboardDelimiter: string;
   enableCellTextSelection: boolean;
+  enableCellChangeFlash: boolean;
+  tooltipShowDelay: number;
+  tooltipHideDelay: number;
 
   // Row Grouping
   groupDefaultExpanded: number;
@@ -63,7 +77,7 @@ export interface GridSettings {
   groupIncludeFooter: boolean;
   groupIncludeTotalFooter: boolean;
   showOpenedGroup: boolean;
-  rowGroupPanelShow: boolean;
+  rowGroupPanelShow: 'always' | 'onlyWhenGrouping' | 'never';
   enableRowGroup: boolean;
   suppressDragLeaveHidesColumns: boolean;
 
@@ -75,6 +89,34 @@ export interface GridSettings {
 
   // Advanced Filtering
   excludeChildrenWhenTreeDataFiltering: boolean;
+  
+  // Export/Import
+  suppressCsvExport: boolean;
+  suppressExcelExport: boolean;
+  
+  // Column Controls
+  autoSizePadding: number;
+  colResizeDefault: 'shift' | 'previousAndNext';
+  maintainColumnOrder: boolean;
+  
+  // Advanced
+  enableCharts: boolean;
+  suppressAriaColCount: boolean;
+  suppressAriaRowCount: boolean;
+  
+  // Default Column Definition
+  defaultColEditable: boolean;
+  defaultColResizable: boolean;
+  defaultColSortable: boolean;
+  defaultColFilter: boolean;
+  defaultColFilterParams: object;
+  defaultColFlex: number;
+  defaultColMinWidth: number;
+  defaultColMaxWidth: number | null;
+  defaultColAutoHeight: boolean;
+  defaultColWrapText: boolean;
+  defaultColCellStyle: object;
+  floatingFilter: boolean;
 }
 
 export interface SettingsSectionProps {
