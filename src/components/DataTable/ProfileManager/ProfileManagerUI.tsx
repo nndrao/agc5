@@ -1,9 +1,8 @@
 /**
- * ProfileManagerUI.tsx
- * UI component for managing profiles
+ * ProfileManagerUI.tsx - Simple, reliable version
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useProfileContext } from './ProfileContext';
 import { safelyAccessGridApi, getColumnState, getFilterModel, getSortModelFromColumnState, loadProfileInStages } from './GridStateUtils';
 import { GridSettings } from '../Settings/types';
@@ -55,11 +54,7 @@ import {
   Trash2,
   MoreHorizontal,
   Star,
-  AlertCircle,
-  CheckCircle2,
-  InfoIcon,
 } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 
 interface ProfileManagerUIProps {
@@ -75,6 +70,10 @@ export function ProfileManagerUI({ gridRef, gridSettings, onProfileLoaded, autoL
     profiles, 
     selectedProfileId, 
     isLoading, 
+    isSaving,
+    isDeleting,
+    isCreating,
+    isSettingDefault,
     error, 
     notification,
     selectProfile, 
@@ -85,30 +84,38 @@ export function ProfileManagerUI({ gridRef, gridSettings, onProfileLoaded, autoL
     clearNotification
   } = useProfileContext();
   
-  // Add state for profile loading indicator
-  const [isApplyingProfile, setIsApplyingProfile] = useState(false);
-
   // Local state
   const [isNewProfileDialogOpen, setIsNewProfileDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [newProfileName, setNewProfileName] = useState('');
   const [newProfileDescription, setNewProfileDescription] = useState('');
   const [profileNameError, setProfileNameError] = useState('');
-
+  const [customBusyState, setCustomBusyState] = useState<string | null>(null);
+  const loadingTimeoutRef = useRef<any>(null);
+  
   // Refs
   const selectRef = useRef<HTMLButtonElement>(null);
+  const didAutoLoadRef = useRef(false);
 
-  // Display notifications
-  React.useEffect(() => {
+  // Combined busy state for UI feedback
+  const isLoadingProfile = customBusyState === 'loading';
+  const isBusy = isLoadingProfile || isSaving || isDeleting || isCreating || isSettingDefault;
+  
+  // Process notifications
+  useEffect(() => {
     if (notification) {
       const { type, message } = notification;
       
-      if (type === 'success') {
-        toast.success(message);
-      } else if (type === 'error') {
-        toast.error(message);
-      } else if (type === 'info') {
-        toast.info(message);
+      switch (type) {
+        case 'success':
+          toast.success(message);
+          break;
+        case 'error':
+          toast.error(message);
+          break;
+        case 'info':
+          toast.info(message);
+          break;
       }
       
       clearNotification();
@@ -116,174 +123,206 @@ export function ProfileManagerUI({ gridRef, gridSettings, onProfileLoaded, autoL
   }, [notification, clearNotification]);
 
   // Display errors
-  React.useEffect(() => {
+  useEffect(() => {
     if (error) {
       toast.error(error);
     }
   }, [error]);
 
-  // Auto-load default profile when component mounts if autoLoadDefaultProfile is true
-  React.useEffect(() => {
-    if (autoLoadDefaultProfile && !isLoading && selectedProfileId && gridRef.current) {
+  // Default profile auto-loading effect that runs once
+  useEffect(() => {
+    // Run this only when autoLoadDefaultProfile becomes true, grid is ready, and profiles are loaded
+    const shouldAutoLoad = 
+      autoLoadDefaultProfile && 
+      !didAutoLoadRef.current && 
+      !isLoading && 
+      !!selectedProfileId;
+
+    if (shouldAutoLoad) {
       console.log('Auto-loading default profile on startup...');
-      // We need to use a timeout to ensure grid API is fully initialized
-      const timer = setTimeout(() => {
-        handleLoadProfile(selectedProfileId);
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoLoadDefaultProfile, isLoading, selectedProfileId, gridRef.current]);
-
-  // Load a profile
-  const handleLoadProfile = (profileId: string) => {
-    // For auto-loading profile at startup, we suppress toasts for better UX
-    const isAutoLoading = autoLoadDefaultProfile && !document.hasFocus();
-    const showToast = !isAutoLoading;
-    
-    // Begin loading profile
-    setIsApplyingProfile(true);
-    
-    const profile = selectProfile(profileId);
-    if (!profile) {
-      if (showToast) toast.error('Failed to select profile');
-      console.error('Failed to select profile - profile not found');
-      setIsApplyingProfile(false);
-      return;
-    }
-
-    const { gridApi, columnApi, isReady } = safelyAccessGridApi(gridRef);
-    if (!isReady) {
-      if (showToast) toast.error('Grid API not available');
-      console.error('Grid API not available when loading profile');
       
-      // For auto-loading, we'll retry after a delay
-      if (isAutoLoading) {
-        console.log('Will retry loading profile after delay...');
-        setTimeout(() => handleLoadProfile(profileId), 500);
-      } else {
-        setIsApplyingProfile(false);
-      }
-      return;
-    }
-
-    // Loading profile with settings
-
-    // Apply the profile in stages
-    const result = loadProfileInStages(
-      gridApi,
-      columnApi,
-      profile.settings,
-      profile.columnState,
-      profile.filterModel,
-      profile.sortModel
-    );
-
-    // Set loading state to false when done
-    setIsApplyingProfile(false);
-
-    if (result.success) {
-      // Update parent component's gridSettings state
-      if (onProfileLoaded) {
-        // Sync parent component state
-        onProfileLoaded(profile.settings);
-      }
+      // Safety timeout to clear loading state
+      const safetyTimer = setTimeout(() => {
+        setCustomBusyState(null);
+        console.log('Auto-load safety timeout triggered');
+      }, 10000); // 10 second max
       
-      // Format and display the timing information
-      if (showToast) {
-        if (result.timing) {
-          const { total, stages } = result.timing;
-          
-          // Sort stages by duration (descending) to show the most time-consuming first
-          const sortedStages = Object.entries(stages)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 3) // Only show top 3 most time-consuming stages
-            .map(([key, time]) => `${key}: ${time.toFixed(0)}ms`);
-            
-          toast.success(
-            <div>
-              <div><strong>Profile loaded: {profile.name}</strong></div>
-              <div className="text-sm text-green-600 dark:text-green-400 mt-1">
-                Completed in {total}ms
-              </div>
-            </div>,
-            { duration: 2500 }
-          );
+      // Set loading state
+      setCustomBusyState('loading');
+      
+      // Add delay so UI renders first
+      loadingTimeoutRef.current = setTimeout(() => {
+        // Mark that we attempted auto-load
+        didAutoLoadRef.current = true;
+        
+        // Try to get the grid API
+        const { gridApi, columnApi, isReady } = safelyAccessGridApi(gridRef);
+        
+        if (isReady) {
+          // Load the profile
+          const profile = selectProfile(selectedProfileId);
+          if (profile) {
+            try {
+              // Apply profile
+              const result = loadProfileInStages(
+                gridApi,
+                columnApi,
+                profile.settings,
+                profile.columnState,
+                profile.filterModel,
+                profile.sortModel
+              );
+              
+              // Update parent state if successful
+              if (result.success && onProfileLoaded) {
+                onProfileLoaded(profile.settings);
+              }
+            } catch (err) {
+              console.error('Error during profile loading', err);
+            }
+          }
         } else {
-          toast.success(`Profile "${profile.name}" loaded successfully`);
+          console.warn('Grid API not ready, cannot auto-load profile');
         }
-      }
-      // Profile loaded successfully
-    } else {
-      if (showToast) toast.error(`Failed to load profile at stage: ${result.stage}`);
-      console.error('Profile loading error:', result.error);
+        
+        // Always clear loading state when done
+        setCustomBusyState(null);
+        clearTimeout(safetyTimer);
+      }, 1500);
+      
+      // Cleanup
+      return () => {
+        if (loadingTimeoutRef.current) {
+          clearTimeout(loadingTimeoutRef.current);
+        }
+        clearTimeout(safetyTimer);
+      };
     }
-  };
+  }, [autoLoadDefaultProfile, selectedProfileId, isLoading, selectProfile, onProfileLoaded, gridRef]);
 
-  // Save current state to profile
-  const handleSaveProfile = () => {
+  // Simple function to load a profile
+  const handleLoadProfile = useCallback((profileId: string) => {
+    // Don't show toast if auto-loading
+    const showToast = autoLoadDefaultProfile ? document.hasFocus() : true;
+    
+    // Set loading state
+    setCustomBusyState('loading');
+    
+    // Safety timeout
+    const safetyTimer = setTimeout(() => {
+      setCustomBusyState(null);
+    }, 5000);
+    
+    try {
+      // Get profile
+      const profile = selectProfile(profileId);
+      if (!profile) {
+        if (showToast) toast.error('Profile not found');
+        setCustomBusyState(null);
+        clearTimeout(safetyTimer);
+        return;
+      }
+      
+      // Get grid API
+      const { gridApi, columnApi, isReady } = safelyAccessGridApi(gridRef);
+      if (!isReady) {
+        if (showToast) toast.error('Grid not ready');
+        setCustomBusyState(null);
+        clearTimeout(safetyTimer);
+        return;
+      }
+      
+      // Apply profile asynchronously
+      setTimeout(() => {
+        try {
+          // Apply profile
+          const result = loadProfileInStages(
+            gridApi,
+            columnApi,
+            profile.settings,
+            profile.columnState,
+            profile.filterModel,
+            profile.sortModel
+          );
+          
+          // Update parent component
+          if (result.success && onProfileLoaded) {
+            onProfileLoaded(profile.settings);
+          }
+          
+          // Show result
+          if (showToast) {
+            if (result.success) {
+              toast.success(`Profile "${profile.name}" loaded successfully`);
+            } else {
+              toast.error(`Failed to load profile: ${result.stage}`);
+            }
+          }
+        } catch (err) {
+          console.error('Error loading profile', err);
+          if (showToast) toast.error('Error loading profile');
+        } finally {
+          // Always clear loading state
+          setCustomBusyState(null);
+          clearTimeout(safetyTimer);
+        }
+      }, 100);
+    } catch (err) {
+      console.error('Error in profile loading', err);
+      setCustomBusyState(null);
+      clearTimeout(safetyTimer);
+    }
+  }, [autoLoadDefaultProfile, selectProfile, gridRef, onProfileLoaded]);
+  
+  // Simple function to save a profile
+  const handleSaveProfile = useCallback(() => {
     if (!selectedProfileId) {
       toast.error('No profile selected');
       return;
     }
-
-    // Show updating indicator
-    setIsApplyingProfile(true);
-
+    
+    // Get grid API
     const { gridApi, columnApi, isReady } = safelyAccessGridApi(gridRef);
     if (!isReady) {
-      toast.error('Grid API not available');
-      setIsApplyingProfile(false);
+      toast.error('Grid not ready');
       return;
     }
-
+    
     // Get current state
     const columnState = getColumnState(columnApi, gridApi);
     const filterModel = getFilterModel(gridApi);
     const sortModel = getSortModelFromColumnState(columnState);
-
-    // Save profile without excessive logging
     
-    // Update the profile
-    const success = updateCurrentProfile(
+    // Update profile - context handles loading state
+    updateCurrentProfile(
       gridSettings,
       columnState,
       filterModel,
       sortModel
     );
-
-    if (!success) {
-      toast.error('Failed to update profile');
-    }
-    
-    // Reset loading state
-    setIsApplyingProfile(false);
-  };
-
+  }, [selectedProfileId, gridRef, gridSettings, updateCurrentProfile]);
+  
   // Create a new profile
-  const handleCreateProfile = () => {
+  const handleCreateProfile = useCallback(() => {
     if (!newProfileName.trim()) {
       setProfileNameError('Profile name is required');
       return;
     }
-
-    // Show loading indicator
-    setIsApplyingProfile(true);
-
+    
+    // Get grid API
     const { gridApi, columnApi, isReady } = safelyAccessGridApi(gridRef);
     if (!isReady) {
-      toast.error('Grid API not available');
+      toast.error('Grid not ready');
       setIsNewProfileDialogOpen(false);
-      setIsApplyingProfile(false);
       return;
     }
-
+    
     // Get current state
     const columnState = getColumnState(columnApi, gridApi);
     const filterModel = getFilterModel(gridApi);
     const sortModel = getSortModelFromColumnState(columnState);
-
-    // Create the profile
+    
+    // Create profile - context handles loading state
     const success = createNewProfile(
       newProfileName,
       newProfileDescription,
@@ -292,48 +331,49 @@ export function ProfileManagerUI({ gridRef, gridSettings, onProfileLoaded, autoL
       filterModel,
       sortModel
     );
-
+    
     if (success) {
       setNewProfileName('');
       setNewProfileDescription('');
       setProfileNameError('');
       setIsNewProfileDialogOpen(false);
     }
-    
-    // Reset loading state
-    setIsApplyingProfile(false);
-  };
-
+  }, [newProfileName, newProfileDescription, gridRef, gridSettings, createNewProfile]);
+  
   // Delete a profile
-  const handleDeleteProfile = () => {
+  const handleDeleteProfile = useCallback(() => {
     if (!selectedProfileId) {
       toast.error('No profile selected');
       return;
     }
     
-    setIsApplyingProfile(true);
-    
+    // Delete profile - context handles loading state
     const success = removeProfile(selectedProfileId);
     if (success) {
       setIsDeleteDialogOpen(false);
     }
-    
-    setIsApplyingProfile(false);
-  };
-
+  }, [selectedProfileId, removeProfile]);
+  
   // Set default profile
-  const handleSetDefaultProfile = () => {
+  const handleSetDefaultProfile = useCallback(() => {
     if (!selectedProfileId) {
       toast.error('No profile selected');
       return;
     }
     
-    setIsApplyingProfile(true);
+    // Set default - context handles loading state
     setAsDefaultProfile(selectedProfileId);
-    setIsApplyingProfile(false);
-  };
+  }, [selectedProfileId, setAsDefaultProfile]);
+  
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
+    };
+  }, []);
 
-  // Render the UI
   return (
     <>
       <div className="flex items-center space-x-2">
@@ -342,19 +382,26 @@ export function ProfileManagerUI({ gridRef, gridSettings, onProfileLoaded, autoL
           <Select
             value={selectedProfileId || ""}
             onValueChange={handleLoadProfile}
-            disabled={isLoading || profiles.length === 0 || isApplyingProfile}
+            disabled={isLoading || profiles.length === 0 || isBusy}
           >
             <SelectTrigger 
               ref={selectRef}
-              className={`w-[200px] ${isApplyingProfile ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' : ''}`}
+              className={`w-[200px] ${isBusy ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' : ''}`}
             >
-              {isApplyingProfile ? (
+              {isBusy ? (
                 <div className="flex items-center">
                   <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  <span>Applying profile...</span>
+                  <span className="whitespace-nowrap">
+                    {isLoadingProfile ? (didAutoLoadRef.current ? "Loading profile..." : "Loading profile...") :
+                     isSaving ? "Saving profile..." :
+                     isCreating ? "Creating profile..." :
+                     isDeleting ? "Deleting profile..." :
+                     isSettingDefault ? "Setting default..." :
+                     "Processing..."}
+                  </span>
                 </div>
               ) : (
                 <SelectValue 
@@ -369,7 +416,7 @@ export function ProfileManagerUI({ gridRef, gridSettings, onProfileLoaded, autoL
                 </div>
               ) : (
                 profiles.map(profile => (
-                  <SelectItem key={profile.id} value={profile.id} disabled={isApplyingProfile}>
+                  <SelectItem key={profile.id} value={profile.id} disabled={isBusy}>
                     <div className="flex items-center">
                       {profile.isDefault && (
                         <Star className="mr-2 h-3 w-3 text-yellow-500" />
@@ -389,15 +436,17 @@ export function ProfileManagerUI({ gridRef, gridSettings, onProfileLoaded, autoL
             <Button
               variant="outline"
               size="icon"
-              disabled={!selectedProfileId || isLoading || isApplyingProfile}
+              disabled={!selectedProfileId || isLoading || isBusy}
               onClick={handleSaveProfile}
-              className={isApplyingProfile ? 'bg-blue-50 dark:bg-blue-900/20' : ''}
+              className={isBusy ? 'bg-blue-50 dark:bg-blue-900/20' : ''}
             >
-              {isApplyingProfile ? (
-                <svg className="animate-spin h-4 w-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
+              {isSaving ? (
+                <div className="flex items-center justify-center w-4 h-4">
+                  <svg className="animate-spin h-4 w-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                </div>
               ) : (
                 <Save className="h-4 w-4" />
               )}
@@ -415,14 +464,16 @@ export function ProfileManagerUI({ gridRef, gridSettings, onProfileLoaded, autoL
               variant="outline"
               size="icon"
               onClick={() => setIsNewProfileDialogOpen(true)}
-              disabled={isLoading || isApplyingProfile}
-              className={isApplyingProfile ? 'bg-blue-50 dark:bg-blue-900/20' : ''}
+              disabled={isLoading || isBusy}
+              className={isBusy ? 'bg-blue-50 dark:bg-blue-900/20' : ''}
             >
-              {isApplyingProfile ? (
-                <svg className="animate-spin h-4 w-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
+              {isCreating ? (
+                <div className="flex items-center justify-center w-4 h-4">
+                  <svg className="animate-spin h-4 w-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                </div>
               ) : (
                 <BookmarkPlus className="h-4 w-4" />
               )}
@@ -439,16 +490,31 @@ export function ProfileManagerUI({ gridRef, gridSettings, onProfileLoaded, autoL
             <Button
               variant="outline"
               size="icon"
-              disabled={!selectedProfileId || isLoading || isApplyingProfile}
-              className={isApplyingProfile ? 'bg-blue-50 dark:bg-blue-900/20' : ''}
+              disabled={!selectedProfileId || isLoading || isBusy}
+              className={isBusy ? 'bg-blue-50 dark:bg-blue-900/20' : ''}
             >
               <MoreHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent>
-            <DropdownMenuItem onClick={handleSetDefaultProfile}>
-              <Star className="mr-2 h-4 w-4" />
-              <span>Set as default</span>
+            <DropdownMenuItem 
+              onClick={handleSetDefaultProfile}
+              disabled={isSettingDefault}
+            >
+              {isSettingDefault ? (
+                <div className="flex items-center">
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span>Setting default...</span>
+                </div>
+              ) : (
+                <>
+                  <Star className="mr-2 h-4 w-4" />
+                  <span>Set as default</span>
+                </>
+              )}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setIsDeleteDialogOpen(true)}>
               <Trash2 className="mr-2 h-4 w-4" />
@@ -515,8 +581,16 @@ export function ProfileManagerUI({ gridRef, gridSettings, onProfileLoaded, autoL
             >
               Cancel
             </Button>
-            <Button onClick={handleCreateProfile}>
-              Create
+            <Button onClick={handleCreateProfile} disabled={isCreating}>
+              {isCreating ? (
+                <div className="flex items-center">
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span>Creating...</span>
+                </div>
+              ) : "Create"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -539,8 +613,17 @@ export function ProfileManagerUI({ gridRef, gridSettings, onProfileLoaded, autoL
             <AlertDialogAction
               onClick={handleDeleteProfile}
               className="bg-destructive text-destructive-foreground"
+              disabled={isDeleting}
             >
-              Delete
+              {isDeleting ? (
+                <div className="flex items-center">
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span>Deleting...</span>
+                </div>
+              ) : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

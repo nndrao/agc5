@@ -13,6 +13,10 @@ interface ProfileContextType {
   profiles: GridProfile[];
   selectedProfileId: string | null;
   isLoading: boolean;
+  isSaving: boolean;
+  isDeleting: boolean;
+  isCreating: boolean;
+  isSettingDefault: boolean;
   error: string | null;
   notification: { type: 'success' | 'error' | 'info' | null; message: string } | null;
   
@@ -31,6 +35,10 @@ const ProfileContext = createContext<ProfileContextType>({
   profiles: [],
   selectedProfileId: null,
   isLoading: false,
+  isSaving: false,
+  isDeleting: false,
+  isCreating: false,
+  isSettingDefault: false,
   error: null,
   notification: null,
   
@@ -48,6 +56,10 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const [profiles, setProfiles] = useState<GridProfile[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [isCreating, setIsCreating] = useState<boolean>(false);
+  const [isSettingDefault, setIsSettingDefault] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info' | null; message: string } | null>(null);
 
@@ -113,14 +125,18 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     sortModel: any[]
   ): boolean => {
     try {
+      setIsCreating(true);
+      
       if (!name.trim()) {
         setError('Profile name is required');
+        setIsCreating(false);
         return false;
       }
       
       // Check for duplicate name
       if (profiles.some(profile => profile.name.toLowerCase() === name.trim().toLowerCase())) {
         setError('A profile with this name already exists');
+        setIsCreating(false);
         return false;
       }
       
@@ -144,10 +160,12 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         setNotification({ type: 'info', message: 'Profile created but could not be saved to storage' });
       }
       
+      setIsCreating(false);
       return true;
     } catch (err) {
       console.error('Error creating profile:', err);
       setError('Failed to create profile');
+      setIsCreating(false);
       return false;
     }
   };
@@ -160,14 +178,18 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     sortModel: any[]
   ): boolean => {
     try {
+      setIsSaving(true);
+      
       if (!selectedProfileId) {
         setError('No profile selected');
+        setIsSaving(false);
         return false;
       }
       
       const currentProfile = profiles.find(p => p.id === selectedProfileId);
       if (!currentProfile) {
         setError('Selected profile not found');
+        setIsSaving(false);
         return false;
       }
       
@@ -192,10 +214,12 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         setNotification({ type: 'info', message: 'Profile updated but could not be saved to storage' });
       }
       
+      setIsSaving(false);
       return true;
     } catch (err) {
       console.error('Error updating profile:', err);
       setError('Failed to update profile');
+      setIsSaving(false);
       return false;
     }
   };
@@ -203,6 +227,8 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   // Remove a profile
   const removeProfile = (profileId: string): boolean => {
     try {
+      setIsDeleting(true);
+      
       const updatedProfiles = deleteProfile(profiles, profileId);
       
       // If we're deleting the selected profile, select another one
@@ -220,10 +246,12 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         setNotification({ type: 'info', message: 'Profile deleted but could not be saved to storage' });
       }
       
+      setIsDeleting(false);
       return true;
     } catch (err) {
       console.error('Error deleting profile:', err);
       setError('Failed to delete profile');
+      setIsDeleting(false);
       return false;
     }
   };
@@ -231,6 +259,8 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   // Set a profile as the default
   const setAsDefaultProfile = (profileId: string): boolean => {
     try {
+      setIsSettingDefault(true);
+      
       const updatedProfiles = profiles.map(profile => ({
         ...profile,
         isDefault: profile.id === profileId
@@ -245,10 +275,12 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         setNotification({ type: 'info', message: 'Default profile set but could not be saved to storage' });
       }
       
+      setIsSettingDefault(false);
       return true;
     } catch (err) {
       console.error('Error setting default profile:', err);
       setError('Failed to set default profile');
+      setIsSettingDefault(false);
       return false;
     }
   };
@@ -263,6 +295,10 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     profiles,
     selectedProfileId,
     isLoading,
+    isSaving,
+    isDeleting,
+    isCreating,
+    isSettingDefault,
     error,
     notification,
     
