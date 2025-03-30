@@ -96,3 +96,260 @@
 - Feature components in directories by feature (e.g., `/components/DataTable/`)
 - Utilities in `/lib/` directory
 - Use barrel exports (index.ts) for organizing exports from directories
+
+## Recent Fixes and Improvements
+
+### 1. Fixed AG Grid Selection Mode Errors
+
+AG Grid 33+ requires a valid `rowSelection` object with a proper `type` property ('singleRow' or 'multiRow'). Implemented multiple layers of protection:
+
+```typescript
+// Helper function to validate rowSelection type
+const validateRowSelectionType = (rowSelection: any): boolean => {
+  if (!rowSelection) return false;
+  if (typeof rowSelection !== 'object') return false;
+  if (!rowSelection.type) return false;  // Ensure type exists
+  if (rowSelection.type !== 'singleRow' && rowSelection.type !== 'multiRow') return false;
+  return true;
+};
+
+// Initialization effect to ensure rowSelection is valid on startup
+useEffect(() => {
+  if (!validateRowSelectionType(gridSettings.rowSelection)) {
+    // Create a proper rowSelection object
+    setGridSettings(prev => ({
+      ...prev,
+      rowSelection: {
+        type: 'multiRow',
+        enableClickSelection: !prev.suppressRowClickSelection,
+        enableSelectionWithoutKeys: !!prev.rowMultiSelectWithClick,
+        groupSelects: 'descendants',
+        copySelectedRows: !prev.suppressCopyRowsToClipboard
+      }
+    }));
+  }
+}, []);
+
+// In AG Grid component ensure rowSelection is always valid
+<AgGridReact
+  // Other props...
+  rowSelection={validateRowSelectionType(gridSettings.rowSelection) ? 
+    gridSettings.rowSelection : 
+    {
+      type: 'multiRow',
+      enableClickSelection: !gridSettings.suppressRowClickSelection,
+      enableSelectionWithoutKeys: !!gridSettings.rowMultiSelectWithClick,
+      groupSelects: 'descendants',
+      copySelectedRows: !gridSettings.suppressCopyRowsToClipboard
+    }
+  }
+/>
+```
+
+### 2. Fixed Profile Settings to Dialog Communication
+
+Fixed an issue where the General Settings dialog didn't reflect the current profile settings when the app was refreshed or a profile was loaded:
+
+```typescript
+// Pass gridSettings from DataTable to GeneralSettingsDialog
+<GeneralSettingsDialog
+  open={settingsOpen}
+  onOpenChange={setSettingsOpen}
+  onApplySettings={(settings) => handleApplySettings(settings, false)}
+  currentSettings={gridSettings}
+/>
+
+// In GeneralSettingsDialog, initialize settings from props
+useEffect(() => {
+  if (currentSettings) {
+    setSettings(currentSettings);
+  }
+}, [currentSettings]);
+
+// Reset hasChanges and update settings when dialog opens
+useEffect(() => {
+  if (open && currentSettings) {
+    setSettings(currentSettings);
+    setHasChanges(false);
+  }
+}, [open, currentSettings]);
+```
+
+### 3. Improved Profile Loading
+
+Fixed profile loading to properly update UI state when loading a profile:
+
+```typescript
+// In data-table.tsx, update gridSettings when a profile is loaded
+(async () => {
+  try {
+    const profile = await loadProfileById(selectedProfileId, gridRef.current?.api);
+    if (profile && profile.settings) {
+      // Update the gridSettings state with the profile settings
+      setGridSettings(profile.settings);
+    }
+  } catch (err) {
+    // Error handling...
+  }
+})();
+
+// Added a callback to ProfileManagerUI to update settings when a profile is loaded manually
+<ProfileManagerUI 
+  gridRef={gridRef} 
+  gridSettings={gridSettings}
+  onSettingsChange={setGridSettings}
+/>
+
+// In ProfileManagerUI.tsx
+const handleLoadProfile = async (profileId: string) => {
+  try {
+    const profile = await loadProfileById(profileId, gridRef.current.api);
+    if (profile?.settings && onSettingsChange) {
+      onSettingsChange(profile.settings);
+    }
+  } catch (error) {
+    // Error handling...
+  }
+};
+```
+
+### 4. Fixed Async Profile Loading
+
+Updated the profile loading mechanism to use ES modules dynamic imports instead of CommonJS require:
+
+```typescript
+// In ProfileContext.tsx
+const loadProfileById = async (profileId: string, gridApi?: any): Promise<GridProfile | null> => {
+  const profile = profiles.find(p => p.id === profileId);
+  if (profile && gridApi) {
+    try {
+      // Using import() instead of require()
+      const GridStateUtils = await import('./GridStateUtils');
+      
+      const result = GridStateUtils.loadProfileInStages(
+        gridApi,
+        gridApi, // For AG-Grid 33+ compatibility
+        profile.settings || {},
+        profile.columnState || [],
+        profile.filterModel || {},
+        profile.sortModel || []
+      );
+      
+      // Error handling...
+    } catch (error) {
+      // Error handling...
+    }
+  }
+  return profile;
+};
+```
+
+### 5. Fixed Dialog Accessibility Issues
+
+Updated the DialogContent components to include proper DialogHeader and DialogTitle elements for screen reader accessibility:
+
+```tsx
+<DialogContent className="max-w-[900px] p-0 backdrop-blur-sm">
+  <DialogHeader className="py-3 px-4 bg-gradient-to-r from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-850 border-b dark:border-gray-700 shadow-sm">
+    <div className="flex items-center justify-between">
+      <div className="flex items-center space-x-2">
+        <Settings2 className="h-4 w-4 text-primary" />
+        <DialogTitle className="text-[14px] font-semibold text-foreground">
+          {currentSection?.label || 'Grid Settings'}
+        </DialogTitle>
+      </div>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
+        onClick={handleClose}
+      >
+        <X className="h-4 w-4" />
+      </Button>
+    </div>
+  </DialogHeader>
+  
+  {/* Dialog content... */}
+</DialogContent>
+```
+
+### 6. Added Comprehensive Error Handling
+
+Enhanced error handling for profile operations:
+
+```typescript
+// Better error formatting in loadProfileById
+if (!result.success) {
+  const errorMessage = result.error 
+    ? (typeof result.error === 'object' ? JSON.stringify(result.error) : result.error.toString())
+    : 'Unknown error loading profile';
+  console.error(`Error loading profile at stage ${result.stage || 'unknown'}: ${errorMessage}`);
+}
+
+// Proper async/await error handling
+try {
+  const profile = await loadProfileById(selectedProfileId, gridRef.current?.api);
+  // Success handling...
+} catch (err) {
+  const errorMessage = err instanceof Error ? err.message : String(err);
+  console.error('Error loading profile:', errorMessage);
+  toast.error('Error loading profile: ' + errorMessage);
+}
+```
+
+### 7. Fixed Settings Merging When Saving Profiles
+
+Ensured settings are properly merged when saving a profile:
+
+```typescript
+// Get the current profile to preserve any existing settings
+const currentProfile = profiles.find(p => p.id === selectedProfileId);
+if (!currentProfile) {
+  toast.error('Selected profile not found');
+  return;
+}
+
+// Merge current profile settings with new settings
+const mergedSettings = {
+  ...currentProfile.settings,  // Start with all existing settings
+  ...gridSettings              // Override with any new settings
+};
+
+// Use the merged settings when updating the profile
+updateCurrentProfile(
+  mergedSettings,
+  columnState,
+  filterModel,
+  sortModel
+);
+```
+
+### 8. Added Retry Mechanism for Profile Loading
+
+Added a retry mechanism to handle race conditions in profile loading:
+
+```typescript
+// Check if profile settings are already applied - if not, try again
+const currentSettings = gridRef.current.api.getGridOption('domLayout');
+const selectedProfile = profiles.find(p => p.id === selectedProfileId);
+
+if (selectedProfile?.settings && 
+    selectedProfile.settings.domLayout !== currentSettings) {
+  
+  // Try loading again with a small delay
+  setTimeout(() => {
+    (async () => {
+      try {
+        const profile = await loadProfileById(selectedProfileId, gridRef.current?.api);
+        if (profile?.settings) {
+          setGridSettings(profile.settings);
+        }
+      } catch (err) {
+        // Error handling...
+      }
+    })();
+  }, 100);
+}
+```
+
+These improvements collectively make the application more robust, accessible, and better able to handle profile management across different scenarios.
