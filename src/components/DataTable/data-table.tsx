@@ -677,21 +677,7 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
         {/* Upper Toolbar */}
         <div className="flex h-[60px] items-center justify-between px-4">
           <div className="flex items-center space-x-2">
-            <div className="relative">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Filter records..."
-                className="w-[200px] pl-8 lg:w-[250px]"
-              />
-            </div>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="outline" size="icon">
-                  <Filter className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Advanced filters</TooltipContent>
-            </Tooltip>
+            {/* Empty div to maintain layout */}
           </div>
 
           <div className="flex items-center space-x-2">
@@ -825,76 +811,6 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
                 </DropdownMenuGroup>
               </DropdownMenuContent>
             </DropdownMenu>
-
-            <Separator orientation="vertical" className="h-8" />
-
-            {/* Action Buttons */}
-            <div className="flex items-center space-x-2">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="outline" size="icon">
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Add new</TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="outline" size="icon">
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Edit selected</TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="outline" size="icon">
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Delete selected</TooltipContent>
-              </Tooltip>
-
-              <Separator orientation="vertical" className="h-8" />
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={handleRefresh}
-                    disabled={isRefreshing}
-                  >
-                    <RefreshCw
-                      className={`h-4 w-4 ${
-                        isRefreshing ? "animate-spin" : ""
-                      }`}
-                    />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Refresh data</TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="outline" size="icon">
-                    <Download className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Export data</TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="outline" size="icon">
-                    <Upload className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Import data</TooltipContent>
-              </Tooltip>
-            </div>
           </div>
         </div>
       </div>
