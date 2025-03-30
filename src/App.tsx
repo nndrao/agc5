@@ -2,7 +2,7 @@ import { ThemeProvider } from "next-themes";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
-import { DataTable } from "@/components/DataTable/data-table";
+import { DataTableWithProfiles } from "@/components/DataTable/data-table";
 import { columns } from "@/components/DataTable/columns";
 
 // Example data
@@ -39,7 +39,7 @@ function App() {
         <div className="flex h-screen flex-col overflow-hidden">
           <Header />
           <main className="flex-1 container mx-auto p-5">
-            <DataTable columns={columns} data={data} />
+            <DataTableWithProfiles columns={columns} data={data} />
           </main>
           <Footer />
         </div>

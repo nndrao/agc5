@@ -17,7 +17,7 @@ import { GridSettings } from "../Settings/types";
  */
 export function safelyAccessGridApi(gridRef: any): {
   gridApi: GridApi | null;
-  columnApi: any | null;
+  columnApi: any | null; // Included for backward compatibility only
   isReady: boolean;
 } {
   try {
@@ -34,28 +34,39 @@ export function safelyAccessGridApi(gridRef: any): {
     }
 
     // In AG-Grid 33+, column API methods have been merged into the grid API
-    // For backward compatibility, we'll set columnApi = gridApi
-    const columnApi = gridApi;
+    // For backward compatibility, we'll return both but they point to the same object
+    // This ensures code that still uses columnApi won't break
     
-    // Log what methods are available on the API for debugging
+    // Log available methods for debugging
     const apiMethods = Object.keys(gridApi)
       .filter(key => typeof gridApi[key] === 'function')
       .slice(0, 10); // Just log a few methods
     
-    console.log("AG-Grid API methods available:", apiMethods);
+    console.log("AG-Grid 33+ API methods available:", apiMethods);
     
-    // Check if we can access some essential column methods directly on the gridApi
-    const hasColumnMethods = 
-      (typeof gridApi.getColumnState === 'function' ||
-       typeof gridApi.applyColumnState === 'function');
+    // Verify that the API has the essential column-related methods
+    // Note: getAllColumns might not be available, but getColumns is the AG-Grid 33+ equivalent
+    const essentialMethods = ['getColumnState', 'applyColumnState', 'getColumn'];
+    const missingEssential = essentialMethods.filter(method => typeof gridApi[method] !== 'function');
     
-    if (hasColumnMethods) {
-      console.log("AG-Grid 33+ detected: column methods are on the main gridApi");
+    if (missingEssential.length > 0) {
+      console.warn("Missing essential AG-Grid 33+ column methods:", missingEssential);
+    } else {
+      console.log("All essential AG-Grid 33+ column methods are available");
     }
     
-    return { gridApi, columnApi, isReady: true };
+    // Check for the possible presence of either getAllColumns or getColumns
+    if (typeof gridApi.getAllColumns !== 'function' && typeof gridApi.getColumns !== 'function') {
+      console.log("Note: Neither getAllColumns nor getColumns methods are available");
+    }
+    
+    return { 
+      gridApi, 
+      columnApi: gridApi, // In AG-Grid 33+, columnApi and gridApi are the same object
+      isReady: true 
+    };
   } catch (error) {
-    console.error("Error accessing grid APIs:", error);
+    console.error("Error accessing grid API:", error);
     return { gridApi: null, columnApi: null, isReady: false };
   }
 }
@@ -64,45 +75,25 @@ export function safelyAccessGridApi(gridRef: any): {
  * Safely get column state for AG-Grid 33+
  * 
  * In AG-Grid 33+, the columnApi methods have been merged into the main gridApi.
- * This function works with both old and new AG-Grid versions.
+ * Always use gridApi for accessing column state in AG-Grid 33+.
  */
-export function getColumnState(columnApi: any, gridApi?: GridApi | null): any[] {
+export function getColumnState(columnApi: any, gridApi: GridApi | null): any[] {
   try {
-    // AG-Grid 33+: Try direct method on gridApi first
+    // AG-Grid 33+: Use direct method on gridApi
     if (gridApi && typeof gridApi.getColumnState === 'function') {
       console.log("Using gridApi.getColumnState (AG-Grid 33+)");
       return gridApi.getColumnState();
     }
     
-    // Pre-33: Try using columnApi
-    if (columnApi && typeof columnApi.getColumnState === 'function' && columnApi !== gridApi) {
-      console.log("Using columnApi.getColumnState (pre AG-Grid 33)");
+    // Fallback to columnApi (pre-AG-Grid 33+)
+    if (columnApi && typeof columnApi.getColumnState === 'function') {
+      console.log("Using columnApi.getColumnState (pre-AG-Grid 33+)");
       return columnApi.getColumnState();
     }
     
-    // Fallback: Try all possible methods
-    if (gridApi) {
-      // Check if getColumnState exists but with a different name
-      const possibleMethodNames = [
-        'getColumnState',
-        'getColumnsState',
-        'getColumnDefs',
-        'getColumns'
-      ];
-      
-      for (const methodName of possibleMethodNames) {
-        if (typeof gridApi[methodName] === 'function') {
-          console.log(`Found alternative column state method: ${methodName}`);
-          const result = gridApi[methodName]();
-          if (Array.isArray(result)) {
-            return result;
-          }
-        }
-      }
-    }
-    
-    console.warn("Cannot get column state - API methods not available");
-    console.info("Please check AG-Grid documentation for the correct method to get column state in your version");
+    // If the method is missing or API is not available
+    console.warn("Cannot get column state - grid API or method not available");
+    console.info("Make sure you're using AG-Grid 33+ and passing the gridApi parameter");
     
     // Return empty array as fallback
     return [];
@@ -116,18 +107,22 @@ export function getColumnState(columnApi: any, gridApi?: GridApi | null): any[] 
  * Safely apply column state for AG-Grid 33+
  * 
  * In AG-Grid 33+, the applyColumnState method is on the main gridApi.
- * This function works with both old and new AG-Grid versions.
  */
-export function applyColumnState(columnApi: any, columnState: any[], gridApi?: GridApi | null): boolean {
+export function applyColumnState(gridApi: GridApi | null, columnState: any[]): boolean {
   try {
     if (!columnState || columnState.length === 0) {
       console.warn("Cannot apply column state - state is empty");
       return false;
     }
     
-    // AG-Grid 33+: Try direct method on gridApi first
-    if (gridApi && typeof gridApi.applyColumnState === 'function') {
-      console.log("Using gridApi.applyColumnState (AG-Grid 33+)");
+    if (!gridApi) {
+      console.warn("Cannot apply column state - grid API not available");
+      return false;
+    }
+    
+    // AG-Grid 33+: Use direct method on gridApi
+    if (typeof gridApi.applyColumnState === 'function') {
+      console.log("Applying column state using AG-Grid 33+ API");
       gridApi.applyColumnState({
         state: columnState,
         applyOrder: true
@@ -135,51 +130,8 @@ export function applyColumnState(columnApi: any, columnState: any[], gridApi?: G
       return true;
     }
     
-    // Pre-33: Try using columnApi if it's different from gridApi
-    if (columnApi && typeof columnApi.applyColumnState === 'function' && columnApi !== gridApi) {
-      console.log("Using columnApi.applyColumnState (pre AG-Grid 33)");
-      columnApi.applyColumnState({
-        state: columnState,
-        applyOrder: true
-      });
-      return true;
-    }
-    
-    // Fallback: Try alternative methods
-    if (gridApi) {
-      // Check if applyColumnState exists but with a different name
-      const possibleMethodNames = [
-        'applyColumnState',
-        'setColumnState',
-        'setColumnsState',
-        'updateColumns'
-      ];
-      
-      for (const methodName of possibleMethodNames) {
-        if (typeof gridApi[methodName] === 'function') {
-          console.log(`Found alternative column state method: ${methodName}`);
-          try {
-            // Try with standard parameters first
-            gridApi[methodName]({
-              state: columnState,
-              applyOrder: true
-            });
-            return true;
-          } catch (e) {
-            // If that fails, try with just the state
-            try {
-              gridApi[methodName](columnState);
-              return true;
-            } catch (e2) {
-              console.warn(`Failed to use ${methodName} method`);
-            }
-          }
-        }
-      }
-    }
-    
-    console.warn("Cannot apply column state - API methods not available");
-    console.info("Please check AG-Grid documentation for the correct method to apply column state in your version");
+    console.warn("Cannot apply column state - applyColumnState method not available on gridApi");
+    console.info("Make sure you're using AG-Grid 33+ with the latest API");
     return false;
   } catch (error) {
     console.error("Error applying column state:", error);
@@ -218,6 +170,25 @@ export function applyFilterModel(gridApi: GridApi | null, filterModel: any): boo
       return false;
     }
     
+    // Validate filter model before applying
+    // Filter models with numeric keys (like "0", "1", "2") will cause errors in AG-Grid 33+
+    // because they expect column IDs, not numeric indexes
+    const isValidFilterModel = typeof filterModel === 'object' && 
+                             !Array.isArray(filterModel) &&
+                             Object.keys(filterModel).every(key => {
+                               // Check if key is a numeric-like string
+                               const isNumericKey = /^\d+$/.test(key);
+                               if (isNumericKey) {
+                                 console.warn(`Invalid filter model key: "${key}" appears to be numeric. AG-Grid expects column IDs.`);
+                               }
+                               return !isNumericKey;
+                             });
+    
+    if (!isValidFilterModel) {
+      console.warn("Filter model contains invalid keys. Skipping application to avoid errors.");
+      return false;
+    }
+    
     gridApi.setFilterModel(filterModel);
     return true;
   } catch (error) {
@@ -249,34 +220,46 @@ export function getSortModelFromColumnState(columnState: any[]): any[] {
 }
 
 /**
- * Apply grid settings safely to the grid
+ * Apply grid settings safely to the grid using AG-Grid 33+ API
  * Prioritizes what settings to apply based on whether we want to preserve column widths
  */
 export function applyGridSettings(
   gridApi: GridApi | null, 
-  columnApi: any | null, 
   settings: GridSettings,
   preserveColumnWidths: boolean = false
-): boolean {
+): { success: boolean; error?: any } {
   if (!gridApi) {
     console.warn("Cannot apply settings - Grid API not available");
-    return false;
+    return { success: false, error: "Grid API not available" };
   }
 
   try {
-    // First, prioritize which settings are safe to apply
-    // These won't affect column layout
+    console.log("Applying grid settings:", { preserveColumnWidths });
+
+    // First, prioritize settings that are safe to apply (won't affect column layout)
     const safeSettings = [
       'headerHeight', 'rowHeight', 
       'pagination', 'paginationPageSize', 
       'animateRows', 'enableCellTextSelection',
-      'tooltipShowDelay', 'tooltipHideDelay'
+      'tooltipShowDelay', 'tooltipHideDelay',
+      'suppressRowHoverHighlight', 'suppressScrollOnNewData',
+      'alwaysShowVerticalScroll', 'suppressColumnMoveAnimation',
+      'suppressMenuHide', 'quickFilterText',
+      'suppressContextMenu', 'tooltipShowDelay', 'tooltipHideDelay',
+      'groupDefaultExpanded', 'groupDisplayType', 'showOpenedGroup',
+      'rowGroupPanelShow', 'suppressDragLeaveHidesColumns', 
+      'multiSortKey', 'accentedSort',
+      'suppressCsvExport', 'suppressExcelExport',
+      'autoSizePadding', 'maintainColumnOrder', 'enableCharts',
+      'excludeChildrenWhenTreeDataFiltering'
     ];
 
-    // Apply safe settings first
+    // Apply safe settings first using gridApi.setGridOption
     safeSettings.forEach(key => {
       if (settings[key] !== undefined) {
         try {
+          // Use AG-Grid 33+ setGridOption method
+          console.log(`Applying setting: ${key} = ${settings[key]}`);
           gridApi.setGridOption(key, settings[key]);
         } catch (err) {
           console.warn(`Failed to apply safe setting ${key}:`, err);
@@ -284,7 +267,95 @@ export function applyGridSettings(
       }
     });
 
-    // If not preserving column widths, apply those settings too
+    // Apply cell flash settings
+    try {
+      gridApi.setGridOption('cellFlashDuration', 
+        settings.cellFlashDuration !== undefined ? 
+        settings.cellFlashDuration : 
+        (settings.enableCellChangeFlash ? 1000 : 0)
+      );
+      
+      gridApi.setGridOption('cellFadeDuration', 
+        settings.cellFadeDuration !== undefined ? 
+        settings.cellFadeDuration : 
+        (settings.enableCellChangeFlash ? 500 : 0)
+      );
+    } catch (err) {
+      console.warn('Failed to apply cell flash settings:', err);
+    }
+
+    // Apply row grouping settings
+    try {
+      gridApi.setGridOption('groupTotalRow', 
+        settings.groupTotalRow !== undefined ? 
+        settings.groupTotalRow : 
+        settings.groupIncludeFooter
+      );
+      
+      gridApi.setGridOption('grandTotalRow', 
+        settings.grandTotalRow !== undefined ? 
+        settings.grandTotalRow : 
+        settings.groupIncludeTotalFooter
+      );
+    } catch (err) {
+      console.warn('Failed to apply row grouping settings:', err);
+    }
+
+    // Apply navigation settings
+    try {
+      gridApi.setGridOption('enterNavigatesVertically', 
+        settings.enterNavigatesVertically !== undefined ? 
+        settings.enterNavigatesVertically : 
+        settings.enterMovesDown
+      );
+      
+      gridApi.setGridOption('enterNavigatesVerticallyAfterEdit', 
+        settings.enterNavigatesVerticallyAfterEdit !== undefined ? 
+        settings.enterNavigatesVerticallyAfterEdit : 
+        settings.enterMovesDownAfterEdit
+      );
+    } catch (err) {
+      console.warn('Failed to apply navigation settings:', err);
+    }
+
+    // Apply cell focus settings
+    try {
+      gridApi.setGridOption('suppressCellFocus', 
+        settings.suppressCellFocus !== undefined ? 
+        settings.suppressCellFocus : 
+        settings.suppressCellSelection
+      );
+    } catch (err) {
+      console.warn('Failed to apply cell focus settings:', err);
+    }
+
+    // Apply row selection settings - this is complex so wrap in try/catch
+    try {
+      // Create the rowSelection object format
+      const rowSelection = {
+        // Ensure the type is always either 'singleRow' or 'multiRow'
+        type: (settings.rowSelection?.type === 'singleRow' || settings.rowSelection?.type === 'multiRow') 
+          ? settings.rowSelection.type 
+          : 'multiRow',
+        enableClickSelection: settings.rowSelection?.enableClickSelection !== undefined 
+          ? settings.rowSelection.enableClickSelection 
+          : !settings.suppressRowClickSelection,
+        enableSelectionWithoutKeys: settings.rowSelection?.enableSelectionWithoutKeys !== undefined
+          ? settings.rowSelection.enableSelectionWithoutKeys
+          : !!settings.rowMultiSelectWithClick,
+        groupSelects: settings.rowSelection?.groupSelects || 'descendants',
+        copySelectedRows: settings.rowSelection?.copySelectedRows !== undefined
+          ? settings.rowSelection.copySelectedRows
+          : !settings.suppressCopyRowsToClipboard
+      };
+      
+      console.log('Applying rowSelection:', rowSelection);
+      gridApi.setGridOption('rowSelection', rowSelection);
+    } catch (err) {
+      console.warn('Failed to apply row selection settings:', err);
+    }
+
+    // If not preserving column widths, apply column-related settings
     if (!preserveColumnWidths) {
       // Apply default column definition
       try {
@@ -297,128 +368,219 @@ export function applyGridSettings(
           resizable: settings.defaultColResizable !== undefined ? settings.defaultColResizable : true,
           sortable: settings.defaultColSortable !== undefined ? settings.defaultColSortable : true,
           floatingFilter: settings.floatingFilter !== undefined ? settings.floatingFilter : false,
+          // AG-Grid 33+: Move sortingOrder to defaultColDef
+          sortingOrder: settings.defaultColSortingOrder || settings.sortingOrder || ['asc', 'desc', null],
+          // AG-Grid 33+: Move unSortIcon to defaultColDef
+          unSortIcon: settings.defaultColUnSortIcon || settings.unSortIcon || false,
+          // In AG-Grid 33+, enableRowGroup should only be used at column level, not grid level
+          enableRowGroup: settings.enableRowGroup,
+          // Other column properties if needed
+          autoHeight: settings.defaultColAutoHeight,
+          wrapText: settings.defaultColWrapText,
+          cellStyle: settings.defaultColCellStyle,
         };
         
+        // Use AG-Grid 33+ setGridOption for defaultColDef
+        console.log('Applying defaultColDef:', defaultColDef);
         gridApi.setGridOption('defaultColDef', defaultColDef);
       } catch (error) {
         console.warn("Error applying defaultColDef:", error);
       }
     }
 
-    // Refresh the grid UI
+    // Set floating filter height
+    if (settings.floatingFilter !== undefined) {
+      try {
+        gridApi.setGridOption('floatingFiltersHeight', settings.floatingFilter ? 35 : 0);
+      } catch (error) {
+        console.warn("Error setting floating filter height:", error);
+      }
+    }
+
+    // Refresh the grid UI using AG-Grid 33+ methods
     try {
-      if (gridApi.refreshHeader) gridApi.refreshHeader();
-      if (gridApi.redrawRows) gridApi.redrawRows();
+      // Refresh header components
+      if (typeof gridApi.refreshHeader === 'function') {
+        gridApi.refreshHeader();
+      }
+      
+      // Refresh cells
+      if (typeof gridApi.refreshCells === 'function') {
+        gridApi.refreshCells({ force: true });
+      } else if (typeof gridApi.redrawRows === 'function') {
+        gridApi.redrawRows();
+      }
     } catch (error) {
       console.warn("Error refreshing grid UI:", error);
     }
 
-    return true;
+    return { success: true };
   } catch (error) {
     console.error("Error applying grid settings:", error);
-    return false;
+    return { success: false, error };
   }
 }
 
 /**
- * Staged profile loading to handle failures gracefully
- * Updated for AG-Grid 33+ compatibility
+ * Apply a grid profile in stages to handle both AG-Grid 33+ and older versions.
+ * Returns detailed result information including success/failure and stage.
  */
-export function loadProfileInStages(
-  gridApi: GridApi | null, 
-  columnApi: any | null,
-  settings: GridSettings,
-  columnState: any[],
-  filterModel: any,
-  sortModel: any[]
-): { success: boolean; stage: string; error?: any } {
+export const loadProfileInStages = (
+  gridApi: any,
+  columnApi: any, // For backward compatibility with AG-Grid < 33
+  settings: GridSettings | undefined,
+  columnState: any[] = [],
+  filterModel: any = {},
+  sortModel: any[] = []
+): { success: boolean; error?: any; stage?: string } => {
   if (!gridApi) {
-    return { success: false, stage: "initialization", error: "Grid API not available" };
+    console.error('Grid API not available for loading profile');
+    return { success: false, error: 'Grid API not available', stage: 'initialization' };
   }
 
-  // For AG-Grid 33+, the columnApi methods are merged into the gridApi
-  // Log the loading process for debugging
-  console.log("Loading profile stages:", { 
-    hasGridApi: !!gridApi,
-    hasColumnApi: !!columnApi,
-    hasColumnState: !!(columnState && columnState.length),
-    hasFilterModel: !!filterModel,
-    hasSettings: !!settings
+  console.log('Loading profile in stages...', {
+    hasSettings: !!settings,
+    settingsCount: settings ? Object.keys(settings).length : 0,
+    columnStateCount: columnState?.length || 0,
+    hasFilterModel: !!filterModel && Object.keys(filterModel || {}).length > 0,
+    sortModelCount: sortModel?.length || 0
   });
 
-  // Stage 1: Apply column state (most visible to user)
   try {
-    if (columnState && columnState.length > 0) {
-      console.log("Applying column state with length:", columnState.length);
-      const columnStateSuccess = applyColumnState(columnApi, columnState, gridApi);
-      if (!columnStateSuccess) {
-        console.warn("Failed to apply column state, but will continue with other settings");
-        // Continue anyway, as we don't want to block the entire profile loading
-      } else {
-        console.log("✓ Column state applied successfully");
+    // Stage 1: Apply grid settings first
+    if (settings && Object.keys(settings).length > 0) {
+      console.log('Stage 1: Applying grid settings', { 
+        settingsCount: Object.keys(settings).length,
+        keySample: Object.keys(settings).slice(0, 5)
+      });
+      
+      // Validate settings object to make sure it's a valid object
+      if (typeof settings !== 'object') {
+        console.error('Settings is not a valid object:', settings);
+        return { success: false, error: 'Invalid settings format', stage: 'settings' };
       }
-    }
-  } catch (error) {
-    console.warn("Error in column state application:", error);
-    // Continue anyway, as we don't want to block the entire profile loading
-  }
-
-  // Stage 2: Apply filter model
-  try {
-    if (filterModel) {
-      console.log("Applying filter model");
-      const filterSuccess = applyFilterModel(gridApi, filterModel);
-      if (!filterSuccess) {
-        // Non-critical, continue
-        console.warn("Failed to apply filter model, continuing anyway");
-      } else {
-        console.log("✓ Filter model applied successfully");
+      
+      try {
+        const result = applyGridSettings(gridApi, settings, false);
+        if (!result.success) {
+          console.error('Failed to apply grid settings:', result.error || 'Unknown error');
+          return { success: false, error: result.error || 'Unknown error applying settings', stage: 'settings' };
+        }
+      } catch (error) {
+        console.error('Exception when applying grid settings:', error);
+        return { success: false, error: error || 'Exception applying settings', stage: 'settings' };
       }
-    }
-  } catch (error) {
-    console.warn("Error in filter model application:", error);
-    // Continue anyway as this is not critical
-  }
-
-  // Stage 3: Apply grid settings (careful not to override column state)
-  try {
-    console.log("Applying grid settings with column state preservation");
-    // In AG-Grid 33+, use gridApi for both parameters since column API is merged
-    const apiToUse = columnApi || gridApi;
-    const settingsSuccess = applyGridSettings(gridApi, apiToUse, settings, true);
-    if (!settingsSuccess) {
-      console.warn("Failed to apply grid settings fully, but will proceed anyway");
-      // Continue anyway, as some settings might have been applied
     } else {
-      console.log("✓ Grid settings applied successfully");
+      console.log('No grid settings to apply');
     }
-  } catch (error) {
-    console.warn("Error in settings application:", error);
-    // Continue anyway, as we don't want to block the entire profile loading
-  }
 
-  // Final stage: Refresh the grid
-  try {
-    console.log("Refreshing grid UI");
-    // Use AG-Grid 33+ compatible methods
-    if (typeof gridApi.refreshCells === 'function') {
-      gridApi.refreshCells({ force: true });
+    // Stage 2: Apply column state (may include column visibility, order, width, etc.)
+    if (columnState && columnState.length > 0) {
+      console.log('Stage 2: Applying column state', { 
+        columnCount: columnState.length,
+        sampleColumn: columnState[0]
+      });
+      
+      try {
+        // In AG-Grid 33+, use gridApi for applyColumnState
+        if (gridApi.applyColumnState) {
+          gridApi.applyColumnState({
+            state: columnState,
+            applyOrder: true  // Ensure column order is applied
+          });
+        } 
+        // Backward compatibility with older AG-Grid versions
+        else if (columnApi && columnApi.applyColumnState) {
+          columnApi.applyColumnState({
+            state: columnState,
+            applyOrder: true
+          });
+        } else {
+          console.warn('No method found to apply column state');
+        }
+      } catch (columnError) {
+        console.error('Error applying column state:', columnError);
+        return { success: false, error: columnError, stage: 'columnState' };
+      }
+    } else {
+      console.log('No column state to apply');
     }
-    
-    // Try refreshHeader method (might exist in different versions)
-    if (typeof gridApi.refreshHeader === 'function') {
-      gridApi.refreshHeader();
-    } else if (typeof gridApi.redrawHeaders === 'function') { 
-      // Alternative method in AG-Grid 33+
-      gridApi.redrawHeaders();
-    }
-    
-    console.log("✓ Grid refreshed successfully");
-  } catch (error) {
-    console.warn("Error refreshing grid:", error);
-    // Continue anyway as the main settings were applied
-  }
 
-  // Return success even if some stages had issues, as long as the grid API was available
-  return { success: true, stage: "complete" };
-}
+    // Stage 3: Apply filter model
+    if (filterModel && Object.keys(filterModel).length > 0) {
+      console.log('Stage 3: Applying filter model', { 
+        filterCount: Object.keys(filterModel).length,
+        filters: Object.keys(filterModel)
+      });
+      
+      try {
+        if (gridApi.setFilterModel) {
+          gridApi.setFilterModel(filterModel);
+        } else {
+          console.warn('setFilterModel not available on gridApi');
+        }
+      } catch (filterError) {
+        console.error('Error applying filter model:', filterError);
+        // Continue anyway, as filter errors aren't critical
+      }
+    } else {
+      console.log('No filter model to apply');
+    }
+
+    // Stage 4: Apply sort model
+    if (sortModel && sortModel.length > 0) {
+      console.log('Stage 4: Applying sort model', { 
+        sortCount: sortModel.length,
+        sortModel
+      });
+      
+      try {
+        // There are multiple ways to apply sort model depending on AG-Grid version
+        if (gridApi.setSortModel) {
+          // AG-Grid 33+ approach
+          gridApi.setSortModel(sortModel);
+        } else if (columnApi && columnApi.applyColumnState) {
+          // Older AG-Grid approach
+          // Convert sort model to column state format
+          const sortColumnState = sortModel.map(item => ({
+            colId: item.colId,
+            sort: item.sort,
+            sortIndex: item.sortIndex
+          }));
+          
+          columnApi.applyColumnState({
+            state: sortColumnState,
+            defaultState: { sort: null }
+          });
+        } else {
+          console.warn('No method found to apply sort model');
+        }
+      } catch (sortError) {
+        console.error('Error applying sort model:', sortError);
+        // Continue anyway, as sort errors aren't critical
+      }
+    } else {
+      console.log('No sort model to apply');
+    }
+
+    // Stage 5: Final grid refresh
+    console.log('Stage 5: Performing final grid refresh');
+    try {
+      if (gridApi.refreshCells) {
+        gridApi.refreshCells({ force: true });
+      }
+      if (gridApi.refreshHeader) {
+        gridApi.refreshHeader();
+      }
+    } catch (refreshError) {
+      console.warn('Error during final refresh:', refreshError);
+      // Continue anyway, as refresh errors aren't critical
+    }
+
+    console.log('Profile loading completed successfully');
+    return { success: true };
+  } catch (error) {
+    console.error('Unexpected error loading profile:', error);
+    return { success: false, error, stage: 'unknown' };
+  }
+};

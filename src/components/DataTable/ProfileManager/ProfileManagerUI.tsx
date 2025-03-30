@@ -5,8 +5,14 @@
 
 import React, { useState, useRef } from 'react';
 import { useProfileContext } from './ProfileContext';
-import { safelyAccessGridApi, getColumnState, getFilterModel, getSortModelFromColumnState, loadProfileInStages } from './GridStateUtils';
+import { 
+  safelyAccessGridApi, 
+  getColumnState, 
+  getFilterModel, 
+  getSortModelFromColumnState 
+} from './GridStateUtils';
 import { GridSettings } from '../Settings/types';
+import { AgGridReact } from 'ag-grid-react';
 
 // UI Components
 import {
@@ -63,11 +69,12 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 
 interface ProfileManagerUIProps {
-  gridRef: React.RefObject<any>;
+  gridRef: React.RefObject<AgGridReact>;
   gridSettings: GridSettings;
+  onSettingsChange?: (settings: GridSettings) => void;
 }
 
-export function ProfileManagerUI({ gridRef, gridSettings }: ProfileManagerUIProps) {
+export function ProfileManagerUI({ gridRef, gridSettings, onSettingsChange }: ProfileManagerUIProps) {
   // Profile context
   const { 
     profiles, 
@@ -80,7 +87,8 @@ export function ProfileManagerUI({ gridRef, gridSettings }: ProfileManagerUIProp
     updateCurrentProfile, 
     removeProfile,
     setAsDefaultProfile,
-    clearNotification
+    clearNotification,
+    loadProfileById
   } = useProfileContext();
 
   // Local state
@@ -118,34 +126,33 @@ export function ProfileManagerUI({ gridRef, gridSettings }: ProfileManagerUIProp
   }, [error]);
 
   // Load a profile
-  const handleLoadProfile = (profileId: string) => {
-    const profile = selectProfile(profileId);
-    if (!profile) {
-      toast.error('Failed to select profile');
-      return;
-    }
-
-    const { gridApi, columnApi, isReady } = safelyAccessGridApi(gridRef);
-    if (!isReady) {
+  const handleLoadProfile = async (profileId: string) => {
+    console.log(`Loading profile with ID: ${profileId}`);
+    
+    if (!gridRef.current?.api) {
       toast.error('Grid API not available');
+      console.error('Failed to access grid API for loading profile');
       return;
     }
-
-    // Apply the profile in stages
-    const result = loadProfileInStages(
-      gridApi,
-      columnApi,
-      profile.settings,
-      profile.columnState,
-      profile.filterModel,
-      profile.sortModel
-    );
-
-    if (result.success) {
-      toast.success(`Profile "${profile.name}" loaded successfully`);
-    } else {
-      toast.error(`Failed to load profile at stage: ${result.stage}`);
-      console.error('Profile loading error:', result.error);
+    
+    try {
+      // Use the context method to load the profile with the grid API
+      const profile = await loadProfileById(profileId, gridRef.current.api);
+      
+      if (profile) {
+        toast.success(`Profile "${profile.name}" loaded successfully`);
+        
+        // Update the parent component's gridSettings
+        if (profile.settings && onSettingsChange) {
+          console.log('Updating parent component gridSettings from ProfileManagerUI');
+          onSettingsChange(profile.settings);
+        }
+      } else {
+        toast.error('Failed to load profile');
+      }
+    } catch (error) {
+      console.error('Error loading profile:', error);
+      toast.error('Failed to load profile due to an error');
     }
   };
 
@@ -156,27 +163,56 @@ export function ProfileManagerUI({ gridRef, gridSettings }: ProfileManagerUIProp
       return;
     }
 
+    console.log(`Saving profile with ID: ${selectedProfileId}`);
+    
     const { gridApi, columnApi, isReady } = safelyAccessGridApi(gridRef);
     if (!isReady) {
       toast.error('Grid API not available');
+      console.error('Failed to access grid API for saving profile');
       return;
     }
 
-    // Get current state
+    // Get current state - compatible with both AG-Grid 33+ and older versions
     const columnState = getColumnState(columnApi, gridApi);
     const filterModel = getFilterModel(gridApi);
     const sortModel = getSortModelFromColumnState(columnState);
+    
+    // Get the current profile to preserve any existing settings
+    const currentProfile = profiles.find(p => p.id === selectedProfileId);
+    if (!currentProfile) {
+      toast.error('Selected profile not found');
+      return;
+    }
+    
+    // Merge current profile settings with new settings from props
+    // This ensures we don't lose any settings that might not be included in gridSettings
+    const mergedSettings = {
+      ...currentProfile.settings,  // Start with all existing settings
+      ...gridSettings              // Override with any new settings from props
+    };
+    
+    console.log('Saving grid state to profile:', {
+      columnStateCount: columnState.length,
+      hasFilterModel: !!filterModel,
+      hasSortModel: !!sortModel,
+      gridSettingsKeys: Object.keys(mergedSettings).length
+    });
 
-    // Update the profile
-    const success = updateCurrentProfile(
-      gridSettings,
-      columnState,
-      filterModel,
-      sortModel
-    );
+    try {
+      // Update the current profile with the new state
+      updateCurrentProfile(
+        // Make sure we save all merged grid settings
+        mergedSettings,
+        columnState,
+        filterModel,
+        sortModel
+      );
 
-    if (!success) {
-      toast.error('Failed to update profile');
+      console.log('Profile saved successfully:', selectedProfileId);
+      toast.success('Profile saved');
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      toast.error('Failed to save profile');
     }
   };
 
@@ -194,7 +230,7 @@ export function ProfileManagerUI({ gridRef, gridSettings }: ProfileManagerUIProp
       return;
     }
 
-    // Get current state
+    // Get current state - compatible with both AG-Grid 33+ and older versions
     const columnState = getColumnState(columnApi, gridApi);
     const filterModel = getFilterModel(gridApi);
     const sortModel = getSortModelFromColumnState(columnState);
@@ -247,7 +283,13 @@ export function ProfileManagerUI({ gridRef, gridSettings }: ProfileManagerUIProp
         {/* Profile Selector */}
         <Select
           value={selectedProfileId || ""}
-          onValueChange={handleLoadProfile}
+          onValueChange={(value) => {
+            // Handle the async function
+            handleLoadProfile(value).catch(error => {
+              console.error('Error in profile selection:', error);
+              toast.error('Failed to load selected profile');
+            });
+          }}
           disabled={isLoading || profiles.length === 0}
         >
           <SelectTrigger 
@@ -281,13 +323,15 @@ export function ProfileManagerUI({ gridRef, gridSettings }: ProfileManagerUIProp
         {/* Save Profile Button */}
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              size="icon"
-              disabled={!selectedProfileId || isLoading}
+            <Button 
+              size="sm" 
+              variant="outline" 
+              disabled={!selectedProfileId}
               onClick={handleSaveProfile}
+              data-save-profile
             >
-              <Save className="h-4 w-4" />
+              <Save className="mr-1 h-4 w-4" />
+              Save
             </Button>
           </TooltipTrigger>
           <TooltipContent>

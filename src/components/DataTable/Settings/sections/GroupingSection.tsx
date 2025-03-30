@@ -80,27 +80,35 @@ export function GroupingSection({ settings, onSettingChange }: SettingsSectionPr
 
           <div className="flex items-center justify-between">
             <div>
-              <Label className="font-medium">Include Footer</Label>
+              <Label className="font-medium">Group Total Row</Label>
               <p className="text-sm text-muted-foreground">
                 Show footer for each group
               </p>
             </div>
             <Switch
-              checked={settings.groupIncludeFooter}
-              onCheckedChange={(value) => onSettingChange('groupIncludeFooter', value)}
+              checked={settings.groupTotalRow}
+              onCheckedChange={(value) => {
+                onSettingChange('groupTotalRow', value);
+                // Keep legacy property for backward compatibility
+                onSettingChange('groupIncludeFooter', value);
+              }}
             />
           </div>
 
           <div className="flex items-center justify-between">
             <div>
-              <Label className="font-medium">Include Total Footer</Label>
+              <Label className="font-medium">Grand Total Row</Label>
               <p className="text-sm text-muted-foreground">
                 Show total footer for all groups
               </p>
             </div>
             <Switch
-              checked={settings.groupIncludeTotalFooter}
-              onCheckedChange={(value) => onSettingChange('groupIncludeTotalFooter', value)}
+              checked={settings.grandTotalRow}
+              onCheckedChange={(value) => {
+                onSettingChange('grandTotalRow', value);
+                // Keep legacy property for backward compatibility
+                onSettingChange('groupIncludeTotalFooter', value);
+              }}
             />
           </div>
 
@@ -121,7 +129,10 @@ export function GroupingSection({ settings, onSettingChange }: SettingsSectionPr
             <div>
               <Label className="font-medium">Enable Row Group</Label>
               <p className="text-sm text-muted-foreground">
-                Allow row grouping
+                Allow row grouping (for defaultColDef)
+              </p>
+              <p className="text-sm text-yellow-600 mt-1">
+                Note: In AG-Grid 33+, this is only used in defaultColDef, not at grid level
               </p>
             </div>
             <Switch

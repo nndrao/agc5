@@ -67,8 +67,45 @@ export function AppearanceSection({ settings, onSettingChange }: SettingsSection
               </p>
             </div>
             <Switch
-              checked={settings.enableCellChangeFlash}
-              onCheckedChange={(value) => onSettingChange('enableCellChangeFlash', value)}
+              checked={settings.cellFlashDuration > 0}
+              onCheckedChange={(value) => {
+                onSettingChange('cellFlashDuration', value ? 1000 : 0);
+                onSettingChange('cellFadeDuration', value ? 500 : 0);
+                // Keep the legacy property for backward compatibility
+                onSettingChange('enableCellChangeFlash', value);
+              }}
+            />
+          </div>
+          
+          <div>
+            <Label className="font-medium">Flash Duration (ms)</Label>
+            <p className="text-sm text-muted-foreground mb-2">
+              Duration of cell flash effect
+            </p>
+            <Input
+              type="number"
+              value={settings.cellFlashDuration}
+              onChange={(e) => {
+                const value = parseInt(e.target.value);
+                onSettingChange('cellFlashDuration', value);
+                onSettingChange('enableCellChangeFlash', value > 0);
+              }}
+              min={0}
+              disabled={settings.cellFlashDuration === 0}
+            />
+          </div>
+          
+          <div>
+            <Label className="font-medium">Fade Duration (ms)</Label>
+            <p className="text-sm text-muted-foreground mb-2">
+              Duration of fade effect after flash
+            </p>
+            <Input
+              type="number"
+              value={settings.cellFadeDuration}
+              onChange={(e) => onSettingChange('cellFadeDuration', parseInt(e.target.value))}
+              min={0}
+              disabled={settings.cellFlashDuration === 0}
             />
           </div>
           

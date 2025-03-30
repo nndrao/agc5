@@ -19,6 +19,7 @@ interface ProfileContextType {
   // Functions
   loadProfiles: () => void;
   selectProfile: (profileId: string) => GridProfile | null;
+  loadProfileById: (profileId: string, gridApi?: any) => Promise<GridProfile | null>;
   createNewProfile: (name: string, description: string, settings: GridSettings, columnState: any[], filterModel: any, sortModel: any[]) => boolean;
   updateCurrentProfile: (settings: GridSettings, columnState: any[], filterModel: any, sortModel: any[]) => boolean;
   removeProfile: (profileId: string) => boolean;
@@ -36,6 +37,7 @@ const ProfileContext = createContext<ProfileContextType>({
   
   loadProfiles: () => {},
   selectProfile: () => null,
+  loadProfileById: () => Promise.resolve(null),
   createNewProfile: () => false,
   updateCurrentProfile: () => false,
   removeProfile: () => false,
@@ -98,6 +100,46 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     const profile = profiles.find(p => p.id === profileId);
     if (profile) {
       setSelectedProfileId(profileId);
+      return profile;
+    }
+    return null;
+  };
+
+  // Load a profile by ID, optionally applying it to a grid
+  const loadProfileById = async (profileId: string, gridApi?: any): Promise<GridProfile | null> => {
+    const profile = profiles.find(p => p.id === profileId);
+    if (profile) {
+      setSelectedProfileId(profileId);
+      
+      // If a grid API is provided, apply the profile
+      if (gridApi) {
+        console.log(`Directly applying profile to grid: ${profile.name}`);
+        try {
+          // Import GridStateUtils dynamically to avoid circular dependencies
+          // using import() instead of require()
+          const GridStateUtils = await import('./GridStateUtils');
+          
+          const result = GridStateUtils.loadProfileInStages(
+            gridApi,
+            gridApi, // For AG-Grid 33+ compatibility
+            profile.settings || {},
+            profile.columnState || [],
+            profile.filterModel || {},
+            profile.sortModel || []
+          );
+          
+          if (!result.success) {
+            const errorMessage = result.error 
+              ? (typeof result.error === 'object' ? JSON.stringify(result.error) : result.error.toString())
+              : 'Unknown error loading profile';
+            console.error(`Error loading profile at stage ${result.stage || 'unknown'}: ${errorMessage}`);
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          console.error('Failed to apply profile to grid:', errorMessage);
+        }
+      }
+      
       return profile;
     }
     return null;
@@ -268,6 +310,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     
     loadProfiles,
     selectProfile,
+    loadProfileById,
     createNewProfile,
     updateCurrentProfile,
     removeProfile,

@@ -1,10 +1,10 @@
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Search, X, Save, ChevronRight, Columns } from "lucide-react";
+import { Search, X, Save, Columns } from "lucide-react";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { ColumnTree } from "./ColumnTree";
 import { ColumnEditor } from "./ColumnEditor";
@@ -44,17 +44,12 @@ export function ColumnSettingsDialog({
       console.log('Inside timeout callback');
       console.log('Grid ref:', gridRef.current);
       console.log('Grid API available:', !!gridRef.current?.api);
-      console.log('Column API available directly:', !!gridRef.current?.columnApi);
       
-      // Try to get columnApi through new method if not available directly
-      const columnApi = gridRef.current?.columnApi || 
-                       (gridRef.current?.api && gridRef.current.api.getColumnApi && 
-                        gridRef.current.api.getColumnApi());
-                        
-      console.log('Column API available after fallback check:', !!columnApi);
+      // In AG-Grid 33+, the grid API has all the column methods
+      const gridApi = gridRef.current?.api;
       
-      if (!gridRef.current || !gridRef.current.api || !columnApi) {
-        console.warn('Grid or APIs not available');
+      if (!gridRef.current || !gridApi) {
+        console.warn('Grid API not available');
         
         // First try fallback from props of grid instance
         if (gridRef.current && gridRef.current.props && gridRef.current.props.columnDefs) {
@@ -155,7 +150,19 @@ export function ColumnSettingsDialog({
         return;
       }
       
-      const allColumns = columnApi.getAllColumns() || [];
+      // In AG-Grid 33+, use gridApi.getColumns() instead of columnApi.getAllColumns()
+      // Note: getColumns is not in the TypeScript definition, so we check for existence
+      const getAllColumnsFn = typeof gridApi.getColumns === 'function' ? 
+                             gridApi.getColumns.bind(gridApi) : 
+                             (typeof gridApi.getAllColumns === 'function' ? 
+                              gridApi.getAllColumns.bind(gridApi) : null);
+      
+      if (!getAllColumnsFn) {
+        console.warn('Could not find getColumns or getAllColumns method on grid API');
+        return;
+      }
+      
+      const allColumns = getAllColumnsFn() || [];
       
       console.log('All columns:', allColumns);
       
@@ -167,21 +174,27 @@ export function ColumnSettingsDialog({
       // Reset states
       const states: Record<string, ColumnState> = {};
       const columnDefs: ColumnDefinition[] = [];
+      
+      // Get column state from gridApi in AG-Grid 33+
+      const columnState = gridApi.getColumnState ? gridApi.getColumnState() : [];
 
       allColumns.forEach(col => {
         const colDef = col.getColDef();
         const colId = col.getId();
-        const colState = columnApi.getColumnState().find(s => s.colId === colId);
+        const colState = columnState.find(s => s.colId === colId);
         
         console.log('Processing column:', colId, colDef);
         
-        // Create column state
+        // Create column state - using column methods that are the same in AG-Grid 33+
         states[colId] = {
           visible: col.isVisible(),
           width: col.getActualWidth(),
           pinned: col.getPinned(),
           sort: colState?.sort || null,
-          position: columnApi.getColumnIndex(colId),
+          // In AG-Grid 33+, use gridApi for getting column index
+          position: typeof gridApi.getColumnIndex === 'function' ? 
+                   gridApi.getColumnIndex(colId) : 
+                   columnState.findIndex(s => s.colId === colId),
           headerName: colDef.headerName || colDef.field || '',
           field: colDef.field || '',
           filter: colDef.filter !== false,
@@ -248,27 +261,28 @@ export function ColumnSettingsDialog({
   };
 
   const handleApply = () => {
-    if (!gridRef.current?.columnApi) return;
+    if (!gridRef.current?.api) return;
 
-    const columnApi = gridRef.current.columnApi;
+    // In AG-Grid 33+, all column API methods are merged into the main gridApi
     const gridApi = gridRef.current.api;
-
+    
     Object.entries(columnStates).forEach(([columnId, state]) => {
-      const column = columnApi.getColumn(columnId);
+      // Get column using gridApi in AG-Grid 33+
+      const column = gridApi.getColumn(columnId);
       if (!column) return;
 
-      // Update column visibility
-      columnApi.setColumnVisible(columnId, state.visible);
+      // Update column visibility using gridApi
+      gridApi.setColumnVisible(columnId, state.visible);
 
-      // Update column width
-      columnApi.setColumnWidth(columnId, state.width);
+      // Update column width using gridApi
+      gridApi.setColumnWidth(columnId, state.width);
 
-      // Update column pinning
-      columnApi.setColumnPinned(columnId, state.pinned);
+      // Update column pinning using gridApi
+      gridApi.setColumnPinned(columnId, state.pinned);
 
-      // Update column position
+      // Update column position using gridApi
       if (typeof state.position === 'number') {
-        columnApi.moveColumn(columnId, state.position);
+        gridApi.moveColumn(columnId, state.position);
       }
 
       // Update column definition
@@ -302,27 +316,55 @@ export function ColumnSettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-[1000px] p-0 backdrop-blur-sm" hideCloseButton>
+      <DialogContent className="max-w-[1000px] p-0 backdrop-blur-sm">
+        <DialogHeader className="py-3 px-4 bg-gradient-to-r from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-850 border-b dark:border-gray-700 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Columns className="h-4 w-4 text-primary" />
+              <DialogTitle className="text-sm font-semibold text-foreground">
+                {selectedColumn ? 
+                  `Column: ${columnStates[selectedColumn]?.headerName || selectedColumn}` : 
+                  'Column Settings'
+                }
+              </DialogTitle>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
+              onClick={handleClose}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </DialogHeader>
+        
         <div className="flex h-[600px] rounded-lg overflow-hidden border-0">
           {/* Left Panel - Column Tree */}
-          <div className="w-[280px] border-r dark:border-gray-700 flex flex-col bg-gray-50 dark:bg-gray-800">
-            <div className="p-3 border-b dark:border-gray-700 bg-gradient-to-r from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-850 shadow-sm">
+          <div className="w-[320px] border-r dark:border-gray-700 bg-gray-50/50 dark:bg-gray-850/50 flex flex-col">
+            {/* Search Bar */}
+            <div className="p-3 border-b dark:border-gray-700">
               <div className="relative">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search columns..."
+                  className="pl-8 h-9"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8 text-sm border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900"
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    debouncedSearch(e.target.value);
+                  }}
                 />
               </div>
             </div>
-            <ScrollArea className="flex-1 bg-white/50 dark:bg-gray-800/50">
+
+            {/* Column List */}
+            <ScrollArea className="flex-1">
               <ColumnTree
                 columns={columns}
-                columnStates={columnStates}
                 selectedColumn={selectedColumn}
                 onColumnSelect={setSelectedColumn}
+                columnStates={columnStates}
                 onColumnStateChange={handleColumnStateChange}
               />
             </ScrollArea>
@@ -330,30 +372,6 @@ export function ColumnSettingsDialog({
 
           {/* Right Panel - Column Editor */}
           <div className="flex-1 flex flex-col">
-            {/* Header */}
-            <div className="flex items-center justify-between py-3 px-4 border-b dark:border-gray-700 bg-gradient-to-r from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-850 shadow-sm">
-              <div className="flex items-center space-x-2">
-                <Columns className="h-4 w-4 text-primary" />
-                <span className="text-sm font-medium text-muted-foreground">Columns</span>
-                {selectedColumn && (
-                  <>
-                    <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                    <span className="text-sm font-semibold text-foreground">
-                      {columnStates[selectedColumn]?.headerName || selectedColumn}
-                    </span>
-                  </>
-                )}
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
-                onClick={handleClose}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-
             {/* Content */}
             <ScrollArea className="flex-1 bg-white dark:bg-gray-900">
               {selectedColumn ? (

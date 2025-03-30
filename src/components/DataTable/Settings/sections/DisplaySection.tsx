@@ -140,8 +140,8 @@ export function DisplaySection({ settings, onSettingChange }: SettingsSectionPro
               </p>
             </div>
             <Switch
-              checked={!settings.suppressCellSelection}
-              onCheckedChange={(value) => onSettingChange('suppressCellSelection', !value)}
+              checked={!settings.suppressCellFocus}
+              onCheckedChange={(value) => onSettingChange('suppressCellFocus', !value)}
             />
           </div>
 

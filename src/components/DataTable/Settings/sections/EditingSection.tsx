@@ -121,6 +121,9 @@ export function EditingSection({ settings, onSettingChange }: SettingsSectionPro
             />
           </div>
 
+          {/* Note: tabNavigatesVertically is not supported in AG-Grid 33+
+              Use tabToNextCell callback instead */}
+          {/*
           <div className="flex items-center justify-between">
             <div>
               <Label className="font-medium">Tab Navigates Vertically</Label>
@@ -133,6 +136,7 @@ export function EditingSection({ settings, onSettingChange }: SettingsSectionPro
               onCheckedChange={(value) => onSettingChange('tabNavigatesVertically', value)}
             />
           </div>
+          */}
         </div>
 
         <div className="space-y-4">

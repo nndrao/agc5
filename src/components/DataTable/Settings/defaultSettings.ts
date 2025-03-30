@@ -9,7 +9,8 @@ export const defaultGridSettings: GridSettings = {
   pivotGroupHeaderHeight: 32,
   floatingFiltersHeight: 32,
   suppressRowHoverHighlight: false,
-  suppressCellSelection: false,
+  // Using valid property instead of suppressCellSelection
+  suppressCellFocus: false,
   suppressRowClickSelection: false,
   suppressScrollOnNewData: false,
   suppressColumnVirtualisation: false,
@@ -17,44 +18,58 @@ export const defaultGridSettings: GridSettings = {
   domLayout: 'normal',
   ensureDomOrder: false,
   alwaysShowVerticalScroll: false,
-  suppressBrowserResizeObserver: false,
+  // suppressBrowserResizeObserver is deprecated and has no effect
   enableRtl: false,
   suppressColumnMoveAnimation: false,
 
   // Data and State
   pagination: true,
   paginationPageSize: 100,
-  cacheBlockSize: 100,
+  // cacheBlockSize: 100, // Not applicable in clientSide row model
+  // Use the new cellSelection property instead of deprecated range properties
+  cellSelection: {
+    handle: 'fill' // Enable both range and fill handles
+  },
+  // Keep deprecated properties for backward compatibility
   enableRangeSelection: true,
   enableRangeHandle: true,
   enableFillHandle: true,
   suppressRowDrag: false,
   suppressMovableColumns: false,
-  immutableData: false,
-  deltaRowDataMode: false,
+  // Using modern data update approach instead of immutableData/deltaRowDataMode
+  resetRowDataOnUpdate: true,
   rowBuffer: 10,
   rowDragManaged: false,
-  batchUpdateWaitMillis: 50,
+  // Use valid asyncTransactionWaitMillis instead of batchUpdateWaitMillis
+  asyncTransactionWaitMillis: 50,
 
-  // Selection
-  rowSelection: 'multiple',
+  // Selection - use object format with type as recommended in AG-Grid 33+
+  rowSelection: {
+    type: 'multiRow',
+    enableSelectionWithoutKeys: false, // Replaces rowMultiSelectWithClick
+    enableClickSelection: true,        // !suppressRowClickSelection
+    groupSelects: 'filteredDescendants', // Choose one of: 'children', 'descendants', 'filteredDescendants'
+    copySelectedRows: true              // !suppressCopyRowsToClipboard
+  },
+  
+  // Legacy property for backward compatibility with old API calls
+  // This is better handled through rowSelection.enableSelectionWithoutKeys
   rowMultiSelectWithClick: false,
-  rowDeselection: true,
-  suppressRowDeselection: false,
-  groupSelectsChildren: true,
-  groupSelectsFiltered: true,
 
   // Editing
   editType: 'doubleClick',
   singleClickEdit: false,
   suppressClickEdit: false,
+  // Using valid properties in AG-Grid 33+
+  enterNavigatesVertically: true,
+  enterNavigatesVerticallyAfterEdit: true,
+  // Keep deprecated properties for backward compatibility
   enterMovesDown: true,
   enterMovesDownAfterEdit: true,
   undoRedoCellEditing: true,
   undoRedoCellEditingLimit: 10,
   stopEditingWhenCellsLoseFocus: true,
-  enterNavigatesVertically: true,
-  tabNavigatesVertically: false,
+  // tabNavigatesVertically is not valid in AG-Grid 33+
 
   // Filtering
   floatingFilter: false,
@@ -71,6 +86,10 @@ export const defaultGridSettings: GridSettings = {
   suppressCopySingleCellRanges: false,
   clipboardDelimiter: '\t',
   enableCellTextSelection: true,
+  // Using valid cell flashing properties instead of enableCellChangeFlash
+  cellFlashDuration: 1000, // milliseconds
+  cellFadeDuration: 500, // milliseconds
+  // Keep deprecated property for backward compatibility
   enableCellChangeFlash: true,
   tooltipShowDelay: 1000,
   tooltipHideDelay: 10000,
@@ -78,15 +97,20 @@ export const defaultGridSettings: GridSettings = {
   // Row Grouping
   groupDefaultExpanded: 0,
   groupDisplayType: 'groupRows',
+  // Replace invalid properties with valid ones
+  groupTotalRow: false, // Instead of groupIncludeFooter
+  grandTotalRow: false, // Instead of groupIncludeTotalFooter
+  // Keep deprecated properties for backward compatibility
   groupIncludeFooter: false,
   groupIncludeTotalFooter: false,
   showOpenedGroup: true,
   rowGroupPanelShow: 'always',
+  // enableRowGroup is not valid at the grid level (it should be in colDef)
   enableRowGroup: true,
   suppressDragLeaveHidesColumns: false,
 
-  // Sorting
-  sortingOrder: ['asc', 'desc', null],
+  // Sorting - with proper typing 
+  sortingOrder: ['asc', 'desc', null] as Array<'asc' | 'desc' | null>, // Kept for backward compatibility
   multiSortKey: 'ctrl',
   accentedSort: false,
   unSortIcon: false,
@@ -105,8 +129,9 @@ export const defaultGridSettings: GridSettings = {
   
   // Advanced
   enableCharts: false,
-  suppressAriaColCount: false,
-  suppressAriaRowCount: false,
+  // Removed invalid properties:
+  // suppressAriaColCount: false,
+  // suppressAriaRowCount: false,
   
   // Default Column Definition
   defaultColEditable: true,
@@ -120,4 +145,8 @@ export const defaultGridSettings: GridSettings = {
   defaultColAutoHeight: false,
   defaultColWrapText: false,
   defaultColCellStyle: {},
+  // Add sortingOrder to defaultColDef (moved from grid-level)
+  defaultColSortingOrder: ['asc', 'desc', null] as Array<'asc' | 'desc' | null>,
+  // Add unSortIcon to defaultColDef (moved from grid-level)
+  defaultColUnSortIcon: false,
 }; 
