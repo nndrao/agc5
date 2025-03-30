@@ -31,9 +31,9 @@ export function SettingsSidebar({
   }, [activeSection]);
 
   return (
-    <div className="w-[250px] border-r bg-gray-50 dark:bg-gray-850 flex flex-col">
-      <div className="p-3 border-b bg-gradient-to-r from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-850 shadow-sm">
-        <h3 className="font-medium text-sm">Settings Categories</h3>
+    <div className="w-[250px] border-r dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex flex-col">
+      <div className="p-3 border-b dark:border-gray-700 bg-gradient-to-r from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-850 shadow-sm">
+        <h3 className="font-medium text-sm text-foreground">Settings Categories</h3>
       </div>
       <ScrollArea className="flex-1">
         <div className="py-2">
@@ -49,13 +49,13 @@ export function SettingsSidebar({
                   "flex flex-col w-full px-3 py-2 text-left transition-colors rounded-none",
                   isActive
                     ? "bg-white dark:bg-gray-900 text-primary border-l-2 border-primary"
-                    : "text-muted-foreground hover:bg-gray-100 dark:hover:bg-gray-800"
+                    : "text-muted-foreground hover:bg-gray-100 dark:hover:bg-gray-700"
                 )}
                 onClick={() => onSectionChange(section.id)}
               >
                 <div className="flex items-center">
                   <Icon className={cn("h-4 w-4 mr-2", isActive ? "text-primary" : "text-muted-foreground")} />
-                  <span className="font-medium text-sm">{section.label}</span>
+                  <span className={cn("font-medium text-sm", isActive ? "text-foreground dark:text-gray-100" : "text-muted-foreground")}>{section.label}</span>
                 </div>
                 <p className="text-xs text-muted-foreground ml-6 mt-1">{section.description}</p>
               </button>

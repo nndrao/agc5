@@ -102,7 +102,7 @@ export function ColumnTree({
   };
 
   return (
-    <div className="py-2">
+    <div className="py-2 dark:text-gray-200">
       {columns.map((column) => renderColumn(column))}
     </div>
   );

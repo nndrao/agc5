@@ -262,7 +262,7 @@ export function GeneralSettingsDialog({
 
           <div className="flex-1 flex flex-col">
             {/* Header */}
-            <div className="flex items-center justify-between py-3 px-4 bg-gradient-to-r from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-850 border-b shadow-sm">
+            <div className="flex items-center justify-between py-3 px-4 bg-gradient-to-r from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-850 border-b dark:border-gray-700 shadow-sm">
               <div className="flex items-center space-x-2">
                 <Settings2 className="h-4 w-4 text-primary" />
                 <span className="text-[14px] text-muted-foreground font-medium">Settings</span>
@@ -287,10 +287,10 @@ export function GeneralSettingsDialog({
             </ScrollArea>
 
             {/* Footer */}
-            <div className="flex items-center justify-between py-3 px-4 border-t bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-850 dark:to-gray-800 shadow-sm">
+            <div className="flex items-center justify-between py-3 px-4 border-t dark:border-gray-700 bg-gradient-to-r from-gray-50 to-gray-100 dark:bg-gray-800 dark:bg-none shadow-sm">
               <div className="flex items-center space-x-2">
                 {hasChanges && (
-                  <Badge variant="outline" className="text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20 border-yellow-300 dark:border-yellow-700 text-[14px] py-0 px-2 rounded-md">
+                  <Badge variant="outline" className="text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 border-yellow-300 dark:border-yellow-700 text-[14px] py-0 px-2 rounded-md">
                     Unsaved Changes
                   </Badge>
                 )}

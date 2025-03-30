@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Command,
   CommandEmpty,
@@ -29,19 +28,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Search,
-  Plus,
-  Pencil,
-  Trash2,
-  RefreshCw,
-  Download,
-  Upload,
-  Filter,
   Type,
   Check,
   ChevronsUpDown,
   Settings,
-  Save,
   Copy,
   FileInput,
   FileOutput,
@@ -63,10 +53,12 @@ import { cn } from "@/lib/utils";
 import { GeneralSettingsDialog } from "./Settings/GeneralSettingsDialog";
 import { ColumnSettingsDialog } from "./Settings/ColumnSettings/ColumnSettingsDialog";
 import { defaultGridSettings } from "./Settings/defaultSettings";
+import { ProfileProvider, ProfileManagerUI } from "./ProfileManager";
 
-import { ModuleRegistry, themeQuartz } from "ag-grid-community";
+import { ModuleRegistry, themeQuartz, GridReadyEvent } from "ag-grid-community";
 import { AllEnterpriseModule } from "ag-grid-enterprise";
 import { AgGridReact } from "ag-grid-react";
+import { Toaster } from "sonner";
 
 ModuleRegistry.registerModules([AllEnterpriseModule]);
 
@@ -216,8 +208,9 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
   const defaultColDef = {
     flex: gridSettings.defaultColFlex || 1,
     minWidth: gridSettings.defaultColMinWidth || 100,
-    maxWidth: gridSettings.defaultColMaxWidth || null,
+    maxWidth: gridSettings.defaultColMaxWidth || undefined,
     filter: gridSettings.defaultColFilter !== undefined ? gridSettings.defaultColFilter : true,
+    filterParams: undefined,
     editable: gridSettings.defaultColEditable !== undefined ? gridSettings.defaultColEditable : true,
     resizable: gridSettings.defaultColResizable !== undefined ? gridSettings.defaultColResizable : true,
     sortable: gridSettings.defaultColSortable !== undefined ? gridSettings.defaultColSortable : true,
@@ -227,29 +220,39 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
     enablePivot: true,
     autoHeight: gridSettings.defaultColAutoHeight || false,
     wrapText: gridSettings.defaultColWrapText || false,
+    cellStyle: undefined,
   };
 
-  const onGridReady = (params) => {
+  const onGridReady = (params: GridReadyEvent) => {
     console.log('Grid is ready', params);
     console.log('Grid API available:', !!params.api);
     
     // In newer versions of AG Grid, columnApi might be accessed differently
-    const columnApi = params.columnApi || (params.api && params.api.getColumnApi());
-    console.log('Column API available via params:', !!params.columnApi);
-    console.log('Column API available via getColumnApi():', !!(params.api && params.api.getColumnApi()));
+    // Use 'as any' to handle different AG Grid versions
+    const columnApi = (params as any).columnApi;
+    console.log('Column API available via params:', !!(params as any).columnApi);
     
     // Store grid APIs directly
     if (gridRef.current) {
       console.log('Setting APIs on gridRef');
+      // Use type assertion for the columnApi assignment
       gridRef.current.api = params.api;
-      gridRef.current.columnApi = columnApi;
+      (gridRef.current as any).columnApi = columnApi;
+      
+      // Log a message that will help confirm API access later
+      console.log('APIs stored in gridRef. Test access:', {
+        apiAccessible: !!gridRef.current.api,
+        columnApiAccessible: !!(gridRef.current as any).columnApi,
+        apiMethods: Object.keys(gridRef.current.api).slice(0, 5), // Log a few methods to confirm API shape
+        columnApiMethods: columnApi ? Object.keys(columnApi).slice(0, 5) : [] // Log column API methods if available
+      });
     }
     
     setGridReady(true);
   };
 
-  const handleApplySettings = (settings) => {
-    console.log('Applying grid settings:', settings);
+  const handleApplySettings = (settings: any, preserveColumnSizes: boolean = false) => {
+    console.log(`Applying grid settings (preserveColumnSizes=${preserveColumnSizes}):`, settings);
     
     // Update the stored settings
     setGridSettings(settings);
@@ -260,9 +263,16 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
     }
     
     const gridApi = gridRef.current.api;
+    const columnApi = (gridRef.current as any).columnApi;
+    
+    // Capture current column state to preserve column widths and other properties
+    const currentColumnState = columnApi ? columnApi.getColumnState() : [];
+    if (preserveColumnSizes) {
+      logColumnWidths(columnApi, 'Column widths before applying settings (will be preserved)');
+    }
     
     // Create a settings map to apply
-    const gridSettingsMap = {
+    const gridSettingsMap: Record<string, any> = {
       // Display and Layout
       headerHeight: settings.headerHeight,
       rowHeight: settings.rowHeight,
@@ -366,33 +376,40 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
     
     // Apply each setting using setGridOption for maximum compatibility
     Object.entries(gridSettingsMap).forEach(([key, value]) => {
+      // Skip settings that affect column widths if preserveColumnSizes is true
+      if (preserveColumnSizes && 
+          ['defaultColDef', 'columnDefs', 'sideBar', 'autoSizePadding'].includes(key)) {
+        console.log(`Skipping ${key} to preserve column widths`);
+        return;
+      }
+      
       try {
         if (value !== undefined) {
           console.log(`Setting grid option: ${key} = ${value}`);
-          gridApi.setGridOption(key, value);
+          (gridApi as any).setGridOption(key as any, value);
         }
       } catch (error) {
         console.warn(`Failed to set grid option: ${key}`, error);
         
         // Try alternative methods for specific properties if setGridOption fails
         try {
-          if (key === 'headerHeight' && gridApi.setHeaderHeight) {
-            gridApi.setHeaderHeight(value);
-          } else if (key === 'paginationPageSize' && gridApi.paginationSetPageSize) {
-            gridApi.paginationSetPageSize(value);
-          } else if (key === 'domLayout' && gridApi.setDomLayout) {
-            gridApi.setDomLayout(value);
-          } else if (key === 'animateRows' && gridApi.setAnimateRows) {
-            gridApi.setAnimateRows(value);
+          if (key === 'headerHeight' && (gridApi as any).setHeaderHeight) {
+            (gridApi as any).setHeaderHeight(value);
+          } else if (key === 'paginationPageSize' && (gridApi as any).paginationSetPageSize) {
+            (gridApi as any).paginationSetPageSize(value);
+          } else if (key === 'domLayout' && (gridApi as any).setDomLayout) {
+            (gridApi as any).setDomLayout(value);
+          } else if (key === 'animateRows' && (gridApi as any).setAnimateRows) {
+            (gridApi as any).setAnimateRows(value);
           } else if (key === 'editType') {
             // Special handling for edit type - this might need different properties in different versions
-            if (gridApi.setGridOption) {
+            if ((gridApi as any).setGridOption) {
               try {
                 // Try different property names that might exist in AG Grid
-                gridApi.setGridOption('editType', value);
+                (gridApi as any).setGridOption('editType' as any, value);
               } catch (e1) {
                 try { 
-                  gridApi.setGridOption('cellEditingType', value); 
+                  (gridApi as any).setGridOption('cellEditingType' as any, value); 
                 } catch (e2) {
                   console.warn('Could not set edit type with any property name');
                 }
@@ -408,7 +425,7 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
     // Special case for sortingOrder which is an array
     if (settings.sortingOrder && Array.isArray(settings.sortingOrder)) {
       try {
-        gridApi.setGridOption('sortingOrder', settings.sortingOrder);
+        (gridApi as any).setGridOption('sortingOrder' as any, settings.sortingOrder);
       } catch (error) {
         console.warn('Failed to set sortingOrder', error);
       }
@@ -422,13 +439,13 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
         
         // Different AG Grid versions might need different configurations
         if (settings.editType === 'fullRow') {
-          gridApi.setGridOption('editType', 'fullRow');
+          (gridApi as any).setGridOption('editType' as any, 'fullRow');
         } else if (settings.editType === 'singleClick') {
-          gridApi.setGridOption('editType', 'singleClick');
-          gridApi.setGridOption('singleClickEdit', true);
+          (gridApi as any).setGridOption('editType' as any, 'singleClick');
+          (gridApi as any).setGridOption('singleClickEdit' as any, true);
         } else if (settings.editType === 'doubleClick') {
-          gridApi.setGridOption('editType', 'doubleClick');
-          gridApi.setGridOption('singleClickEdit', false);
+          (gridApi as any).setGridOption('editType' as any, 'doubleClick');
+          (gridApi as any).setGridOption('singleClickEdit' as any, false);
         }
       }
     } catch (editTypeError) {
@@ -439,126 +456,82 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
     try {
       // Set the floating filters height (required at grid level)
       if (settings.floatingFilter) {
-        gridApi.setGridOption('floatingFiltersHeight', 35); // Default height for floating filters
+        (gridApi as any).setGridOption('floatingFiltersHeight', 35); // Default height for floating filters
       } else {
-        gridApi.setGridOption('floatingFiltersHeight', 0); // Hide when disabled
+        (gridApi as any).setGridOption('floatingFiltersHeight', 0); // Hide when disabled
       }
     } catch (filterError) {
       console.warn('Failed to set floating filter height', filterError);
     }
     
     // Update default column definitions for editing settings
-    // Some editing settings need to be applied to columns not just the grid
     try {
-      const updatedDefaultColDef = {
-        ...defaultColDef,
-        // Apply default column definition settings from our general settings
-        editable: settings.defaultColEditable,
-        resizable: settings.defaultColResizable,
-        sortable: settings.defaultColSortable,
-        filter: settings.defaultColFilter,
-        filterParams: settings.defaultColFilterParams,
-        flex: settings.defaultColFlex,
-        minWidth: settings.defaultColMinWidth,
-        maxWidth: settings.defaultColMaxWidth,
-        autoHeight: settings.defaultColAutoHeight,
-        wrapText: settings.defaultColWrapText,
-        cellStyle: settings.defaultColCellStyle,
-        floatingFilter: settings.floatingFilter,
-      };
+      // Copy existing defaultColDef
+      const updatedDefaultColDef = { ...defaultColDef };
       
-      // 1. Update the default column definition for future columns
-      gridApi.setGridOption('defaultColDef', updatedDefaultColDef);
-      console.log('Updated defaultColDef with settings');
+      // Apply non-width related settings
+      updatedDefaultColDef.editable = settings.defaultColEditable;
+      updatedDefaultColDef.resizable = settings.defaultColResizable;
+      updatedDefaultColDef.sortable = settings.defaultColSortable;
+      updatedDefaultColDef.filter = settings.defaultColFilter;
+      updatedDefaultColDef.filterParams = settings.defaultColFilterParams;
+      updatedDefaultColDef.autoHeight = settings.defaultColAutoHeight;
+      updatedDefaultColDef.wrapText = settings.defaultColWrapText;
+      updatedDefaultColDef.cellStyle = settings.defaultColCellStyle;
+      updatedDefaultColDef.floatingFilter = settings.floatingFilter;
       
-      // 2. Critical step: Apply the new defaults to all existing columns
-      if (gridRef.current && gridRef.current.columnApi) {
-        const columnApi = gridRef.current.columnApi;
-        const allColumns = columnApi.getAllColumns();
-        
-        if (allColumns && allColumns.length > 0) {
-          console.log('Applying column defaults to existing columns');
-          
-          // Create new column definitions with updated defaults
-          const newColumnDefs = columnApi.getAllGridColumns().map(col => {
-            const currentColDef = col.getColDef();
-            return {
-              ...currentColDef,
-              // Only apply properties that are in the updated defaults
-              // but don't override explicit column settings
-              editable: currentColDef.editable === undefined ? settings.defaultColEditable : currentColDef.editable,
-              resizable: currentColDef.resizable === undefined ? settings.defaultColResizable : currentColDef.resizable,
-              sortable: currentColDef.sortable === undefined ? settings.defaultColSortable : currentColDef.sortable,
-              filter: currentColDef.filter === undefined ? settings.defaultColFilter : currentColDef.filter,
-              flex: currentColDef.flex === undefined ? settings.defaultColFlex : currentColDef.flex,
-              minWidth: currentColDef.minWidth === undefined ? settings.defaultColMinWidth : currentColDef.minWidth,
-              maxWidth: currentColDef.maxWidth === undefined ? settings.defaultColMaxWidth : currentColDef.maxWidth,
-              autoHeight: currentColDef.autoHeight === undefined ? settings.defaultColAutoHeight : currentColDef.autoHeight,
-              wrapText: currentColDef.wrapText === undefined ? settings.defaultColWrapText : currentColDef.wrapText,
-              floatingFilter: currentColDef.floatingFilter === undefined ? settings.floatingFilter : currentColDef.floatingFilter,
-            };
-          });
-          
-          // Update the column definitions with new values
-          gridApi.setColumnDefs(newColumnDefs);
-          
-          // Force column refresh to apply all changes
-          setTimeout(() => {
-            if (gridApi.refreshCells) {
-              gridApi.refreshCells({ force: true });
-            }
-            if (columnApi.autoSizeAllColumns) {
-              columnApi.autoSizeAllColumns();
-            }
-          }, 50);
-        }
+      // Only apply width-related settings if we are not preserving column sizes
+      if (!preserveColumnSizes) {
+        updatedDefaultColDef.flex = settings.defaultColFlex;
+        updatedDefaultColDef.minWidth = settings.defaultColMinWidth;
+        updatedDefaultColDef.maxWidth = settings.defaultColMaxWidth;
       }
+      
+      // Update the defaultColDef
+      (gridApi as any).setGridOption('defaultColDef', updatedDefaultColDef);
+      console.log('Updated defaultColDef with settings' + 
+                  (preserveColumnSizes ? ' (width properties preserved)' : ''));
+      
+      // Just refresh cells without updating column defs
+      setTimeout(() => {
+        if ((gridApi as any).refreshCells) {
+          (gridApi as any).refreshCells({ force: true });
+        }
+      }, 50);
     } catch (defColDefError) {
       console.warn('Failed to update defaultColDef with settings', defColDefError);
     }
     
-    // Refresh the grid UI
+    // Refresh the grid UI but preserve column state if needed
     try {
       // Important: For filters to refresh properly, we need these specific methods
-      if (gridApi.refreshHeader) gridApi.refreshHeader();
+      if ((gridApi as any).refreshHeader) (gridApi as any).refreshHeader();
       
-      // For floating filters specifically, we need to trigger a full header recreation
-      // This is documented in AG Grid's header component API
+      // For floating filters specifically, we need to trigger a header refresh
       if (settings.floatingFilter) {
-        // AG Grid v33+ requires explicit header refresh for filter updates
         try {
-          // Method 1: Try the recommended API call sequence
-          gridApi.refreshHeader();
-          // Completely destroy and recreate the header component
-          if (gridApi.destroyHeader) {
-            gridApi.destroyHeader();
-            // This forces AG Grid to create a fresh header with the new floating filters
-            if (gridRef.current && gridRef.current.columnApi) {
-              const columnApi = gridRef.current.columnApi;
-              columnApi.applyColumnState({
-                state: columnApi.getColumnState(),
-                applyOrder: true
-              });
-            }
-          }
-          
-          // Method 2: Force a grid property update that triggers header rebuild
-          gridApi.setGridOption('headerHeight', settings.headerHeight);
-          
-          // Method 3: Use sizeColumnsToFit as a reliable way to force refresh
-          setTimeout(() => {
-            if (gridApi.sizeColumnsToFit) {
-              gridApi.sizeColumnsToFit();
-            }
-          }, 100);
+          (gridApi as any).refreshHeader();
         } catch (headerError) {
           console.warn('Error refreshing header components:', headerError);
         }
       }
       
-      if (gridApi.redrawRows) gridApi.redrawRows();
+      if ((gridApi as any).redrawRows) (gridApi as any).redrawRows();
       
-      console.log('Grid settings applied successfully');
+      // Restore column state to preserve widths if requested
+      if (preserveColumnSizes && columnApi && currentColumnState.length > 0) {
+        console.log('Restoring column state after applying settings to preserve widths');
+        columnApi.applyColumnState({
+          state: currentColumnState,
+          applyOrder: true
+        });
+        
+        // Log final column widths
+        logColumnWidths(columnApi, 'Column widths after restoring column state');
+      }
+      
+      console.log('Grid settings applied successfully' + 
+                  (preserveColumnSizes ? ' with width preservation' : ''));
     } catch (error) {
       console.warn('Error refreshing grid after settings applied', error);
     }
@@ -566,6 +539,7 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
 
   // Create a map of grid options from the defaultGridSettings
   const getGridOptionsFromSettings = () => {
+    // Use type assertion for the entire object to avoid specific property conflicts
     return {
       // Display and Layout
       headerHeight: gridSettings.headerHeight,
@@ -657,7 +631,8 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
       
       // Column Controls
       autoSizePadding: gridSettings.autoSizePadding,
-      colResizeDefault: gridSettings.colResizeDefault,
+      // Ensure colResizeDefault is only 'shift' if used
+      colResizeDefault: gridSettings.colResizeDefault === 'shift' ? 'shift' : undefined,
       maintainColumnOrder: gridSettings.maintainColumnOrder,
       
       // Advanced
@@ -667,32 +642,40 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
       
       // Advanced Filtering
       excludeChildrenWhenTreeDataFiltering: gridSettings.excludeChildrenWhenTreeDataFiltering,
-    };
+    } as any; // Cast the entire result to avoid TypeScript type issues
+  };
+
+  // Debug helper to log column width changes
+  const logColumnWidths = (columnApi: any, message: string) => {
+    if (!columnApi) return;
+    
+    try {
+      const columnState = columnApi.getColumnState();
+      const widthInfo = columnState.map((col: any) => ({
+        colId: col.colId,
+        width: col.width,
+        flex: col.flex
+      }));
+      console.log(`${message}:`, widthInfo);
+    } catch (e) {
+      console.error('Failed to log column widths:', e);
+    }
   };
 
   return (
-    <div className="flex h-full flex-col rounded-md border bg-card">
-      {/* Main Toolbar */}
-      <div className="flex flex-col border-b bg-gray-50/50 dark:bg-gray-800/50">
-        {/* Upper Toolbar */}
-        <div className="flex h-[60px] items-center justify-between px-4">
-          <div className="flex items-center space-x-2">
-            <div className="relative">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Filter records..."
-                className="w-[200px] pl-8 lg:w-[250px]"
-              />
+    <ProfileProvider>
+      <div className="flex h-full flex-col rounded-md border bg-card">
+        {/* Toast notifications for profile actions */}
+        <Toaster position="top-right" />
+        
+        {/* Main Toolbar */}
+        <div className="flex flex-col border-b bg-gray-50/50 dark:bg-gray-800/50">
+          {/* Upper Toolbar */}
+          <div className="flex h-[60px] items-center justify-between px-4">
+            <div className="flex items-center space-x-2">
+              {/* Profile Management Controls */}
+              <ProfileManagerUI gridRef={gridRef} gridSettings={gridSettings} />
             </div>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="outline" size="icon">
-                  <Filter className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Advanced filters</TooltipContent>
-            </Tooltip>
-          </div>
 
           <div className="flex items-center space-x-2">
             {/* Font Selector */}
@@ -763,15 +746,10 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
                     <span>Column Settings</span>
                   </DropdownMenuItem>
                 </DropdownMenuGroup>
-
+                
                 <DropdownMenuSeparator />
                 
                 <DropdownMenuGroup>
-                  <DropdownMenuItem>
-                    <Save className="mr-2 h-4 w-4" />
-                    <span>Save Layout</span>
-                    <DropdownMenuShortcut>⌘S</DropdownMenuShortcut>
-                  </DropdownMenuItem>
                   <DropdownMenuItem>
                     <Copy className="mr-2 h-4 w-4" />
                     <span>Copy Layout</span>
@@ -825,76 +803,6 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
                 </DropdownMenuGroup>
               </DropdownMenuContent>
             </DropdownMenu>
-
-            <Separator orientation="vertical" className="h-8" />
-
-            {/* Action Buttons */}
-            <div className="flex items-center space-x-2">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="outline" size="icon">
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Add new</TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="outline" size="icon">
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Edit selected</TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="outline" size="icon">
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Delete selected</TooltipContent>
-              </Tooltip>
-
-              <Separator orientation="vertical" className="h-8" />
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={handleRefresh}
-                    disabled={isRefreshing}
-                  >
-                    <RefreshCw
-                      className={`h-4 w-4 ${
-                        isRefreshing ? "animate-spin" : ""
-                      }`}
-                    />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Refresh data</TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="outline" size="icon">
-                    <Download className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Export data</TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="outline" size="icon">
-                    <Upload className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Import data</TooltipContent>
-              </Tooltip>
-            </div>
           </div>
         </div>
       </div>
@@ -909,10 +817,6 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
           defaultColDef={defaultColDef}
           sideBar={true}
           onGridReady={onGridReady}
-          suppressPropertyNamesCheck={true}
-          suppressReactUi={false}
-          enableCellTextSelection={true}
-          ensureDomOrder={true}
           {...getGridOptionsFromSettings()}
         />
       </div>
@@ -920,7 +824,7 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
       <GeneralSettingsDialog
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
-        onApplySettings={handleApplySettings}
+        onApplySettings={(settings) => handleApplySettings(settings, false)}
       />
 
       <ColumnSettingsDialog
@@ -930,5 +834,6 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
         fallbackColumnDefs={columnDefs}
       />
     </div>
-  );
+  </ProfileProvider>
+);
 }
