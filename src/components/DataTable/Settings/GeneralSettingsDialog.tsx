@@ -21,7 +21,7 @@ import {
   BarChart4,
   TableProperties
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { SettingsSidebar } from "./SettingsSidebar";
 import {
   DisplaySection,
@@ -59,135 +59,154 @@ interface GeneralSettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onApplySettings?: (settings: GridSettings) => void;
+  initialSettings?: GridSettings; // Add prop for initial settings
 }
 
 export function GeneralSettingsDialog({ 
   open, 
   onOpenChange,
-  onApplySettings 
+  onApplySettings,
+  initialSettings 
 }: GeneralSettingsDialogProps) {
   const [activeSection, setActiveSection] = useState('display');
   const [hasChanges, setHasChanges] = useState(false);
-  const [settings, setSettings] = useState<GridSettings>({
-    // Display and Layout
-    rowHeight: 48,
-    headerHeight: 45,
-    pivotHeaderHeight: 32,
-    pivotGroupHeaderHeight: 32,
-    floatingFiltersHeight: 32,
-    suppressRowHoverHighlight: false,
-    suppressCellSelection: false,
-    suppressRowClickSelection: false,
-    suppressScrollOnNewData: false,
-    suppressColumnVirtualisation: false,
-    suppressRowVirtualisation: false,
-    domLayout: 'normal',
-    ensureDomOrder: false,
-    alwaysShowVerticalScroll: false,
-    suppressBrowserResizeObserver: false,
-    enableRtl: false,
-    suppressColumnMoveAnimation: false,
-
-    // Data and State
-    pagination: true,
-    paginationPageSize: 100,
-    cacheBlockSize: 100,
-    enableRangeSelection: true,
-    enableRangeHandle: true,
-    enableFillHandle: true,
-    suppressRowDrag: false,
-    suppressMovableColumns: false,
-    immutableData: false,
-    deltaRowDataMode: false,
-    rowBuffer: 10,
-    rowDragManaged: false,
-    batchUpdateWaitMillis: 50,
-
-    // Selection
-    rowSelection: 'multiple',
-    rowMultiSelectWithClick: false,
-    rowDeselection: true,
-    suppressRowDeselection: false,
-    groupSelectsChildren: true,
-    groupSelectsFiltered: true,
-
-    // Editing
-    editType: 'doubleClick',
-    singleClickEdit: false,
-    suppressClickEdit: false,
-    enterMovesDown: true,
-    enterMovesDownAfterEdit: true,
-    undoRedoCellEditing: true,
-    undoRedoCellEditingLimit: 10,
-    stopEditingWhenCellsLoseFocus: true,
-    enterNavigatesVertically: true,
-    tabNavigatesVertically: false,
-
-    // Filtering
-    floatingFilter: true,
-    suppressMenuHide: false,
-    quickFilterText: '',
-    cacheQuickFilter: true,
-
-    // Appearance
-    theme: 'ag-theme-quartz',
-    animateRows: true,
-    enableBrowserTooltips: false,
-    suppressContextMenu: false,
-    suppressCopyRowsToClipboard: false,
-    suppressCopySingleCellRanges: false,
-    clipboardDelimiter: '\t',
-    enableCellTextSelection: true,
-    enableCellChangeFlash: true,
-    tooltipShowDelay: 1000,
-    tooltipHideDelay: 10000,
-
-    // Row Grouping
-    groupDefaultExpanded: 0,
-    groupDisplayType: 'groupRows',
-    groupIncludeFooter: false,
-    groupIncludeTotalFooter: false,
-    showOpenedGroup: true,
-    rowGroupPanelShow: 'always',
-    enableRowGroup: true,
-    suppressDragLeaveHidesColumns: false,
-
-    // Sorting
-    sortingOrder: ['asc', 'desc', null],
-    multiSortKey: 'ctrl',
-    accentedSort: false,
-    unSortIcon: false,
-
-    // Advanced Filtering
-    excludeChildrenWhenTreeDataFiltering: false,
+  
+  // Use the initialSettings if provided, otherwise use defaults
+  // Initialize settings state from initialSettings prop
+  const [settings, setSettings] = useState<GridSettings>(() => {
+    if (initialSettings) {
+      return { ...initialSettings };
+    }
     
-    // Export/Import
-    suppressCsvExport: false,
-    suppressExcelExport: false,
-    
-    // Column Controls
-    autoSizePadding: 20,
-    colResizeDefault: 'shift',
-    maintainColumnOrder: true,
-    
-    // Advanced
-    enableCharts: false,
-    suppressAriaColCount: false,
-    suppressAriaRowCount: false,
-    
-    // Default Column Definition
-    defaultColEditable: true,
-    defaultColResizable: true,
-    defaultColSortable: true,
-    defaultColFilter: true,
-    defaultColFilterParams: {},
-    defaultColFlex: 1,
-    defaultColMinWidth: 100,
-    defaultColMaxWidth: null,
-    defaultColAutoHeight: false,
-    defaultColWrapText: false,
-    defaultColCellStyle: {},
+    return {
+      // Display and Layout
+      rowHeight: 48,
+      headerHeight: 45,
+      pivotHeaderHeight: 32,
+      pivotGroupHeaderHeight: 32,
+      floatingFiltersHeight: 32,
+      suppressRowHoverHighlight: false,
+      suppressCellSelection: false,
+      suppressRowClickSelection: false,
+      suppressScrollOnNewData: false,
+      suppressColumnVirtualisation: false,
+      suppressRowVirtualisation: false,
+      domLayout: 'normal',
+      ensureDomOrder: false,
+      alwaysShowVerticalScroll: false,
+      suppressBrowserResizeObserver: false,
+      enableRtl: false,
+      suppressColumnMoveAnimation: false,
+
+      // Data and State
+      pagination: true,
+      paginationPageSize: 100,
+      cacheBlockSize: 100,
+      enableRangeSelection: true,
+      enableRangeHandle: true,
+      enableFillHandle: true,
+      suppressRowDrag: false,
+      suppressMovableColumns: false,
+      immutableData: false,
+      deltaRowDataMode: false,
+      rowBuffer: 10,
+      rowDragManaged: false,
+      batchUpdateWaitMillis: 50,
+
+      // Selection
+      rowSelection: 'multiple',
+      rowMultiSelectWithClick: false,
+      rowDeselection: true,
+      suppressRowDeselection: false,
+      groupSelectsChildren: true,
+      groupSelectsFiltered: true,
+
+      // Editing
+      editType: 'doubleClick',
+      singleClickEdit: false,
+      suppressClickEdit: false,
+      enterMovesDown: true,
+      enterMovesDownAfterEdit: true,
+      undoRedoCellEditing: true,
+      undoRedoCellEditingLimit: 10,
+      stopEditingWhenCellsLoseFocus: true,
+      enterNavigatesVertically: true,
+      tabNavigatesVertically: false,
+
+      // Filtering
+      floatingFilter: true,
+      suppressMenuHide: false,
+      quickFilterText: '',
+      cacheQuickFilter: true,
+
+      // Appearance
+      theme: 'ag-theme-quartz',
+      animateRows: true,
+      enableBrowserTooltips: false,
+      suppressContextMenu: false,
+      suppressCopyRowsToClipboard: false,
+      suppressCopySingleCellRanges: false,
+      clipboardDelimiter: '\t',
+      enableCellTextSelection: true,
+      enableCellChangeFlash: true,
+      tooltipShowDelay: 1000,
+      tooltipHideDelay: 10000,
+
+      // Row Grouping
+      groupDefaultExpanded: 0,
+      groupDisplayType: 'groupRows',
+      groupIncludeFooter: false,
+      groupIncludeTotalFooter: false,
+      showOpenedGroup: true,
+      rowGroupPanelShow: 'always',
+      enableRowGroup: true,
+      suppressDragLeaveHidesColumns: false,
+
+      // Sorting
+      sortingOrder: ['asc', 'desc', null],
+      multiSortKey: 'ctrl',
+      accentedSort: false,
+      unSortIcon: false,
+
+      // Advanced Filtering
+      excludeChildrenWhenTreeDataFiltering: false,
+      
+      // Export/Import
+      suppressCsvExport: false,
+      suppressExcelExport: false,
+      
+      // Column Controls
+      autoSizePadding: 20,
+      colResizeDefault: 'shift',
+      maintainColumnOrder: true,
+      
+      // Advanced
+      enableCharts: false,
+      suppressAriaColCount: false,
+      suppressAriaRowCount: false,
+      
+      // Default Column Definition
+      defaultColEditable: true,
+      defaultColResizable: true,
+      defaultColSortable: true,
+      defaultColFilter: true,
+      defaultColFilterParams: {},
+      defaultColFlex: 1,
+      defaultColMinWidth: 100,
+      defaultColMaxWidth: null,
+      defaultColAutoHeight: false,
+      defaultColWrapText: false,
+      defaultColCellStyle: {},
+    };
   });
+
+  // Update settings when initialSettings changes
+  useEffect(() => {
+    if (initialSettings) {
+      setSettings({...initialSettings});
+      setHasChanges(false);
+    }
+  }, [initialSettings]);
 
   const handleSettingChange = <K extends keyof GridSettings>(
     key: K,

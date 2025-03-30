@@ -264,29 +264,60 @@ export function applyGridSettings(
   }
 
   try {
-    // First, prioritize which settings are safe to apply
-    // These won't affect column layout
-    const safeSettings = [
-      'headerHeight', 'rowHeight', 
-      'pagination', 'paginationPageSize', 
-      'animateRows', 'enableCellTextSelection',
-      'tooltipShowDelay', 'tooltipHideDelay'
+    // All available settings listed in priority order
+    const allSettings = [
+      // High Priority (visual impact)
+      'pagination', 'paginationPageSize', 'rowHeight', 'headerHeight',
+      'rowSelection', 'suppressCellSelection', 'enableCellTextSelection',
+      'floatingFilter', 'animateRows', 'enableRangeSelection', 
+      'editType', 'singleClickEdit', 'floatingFiltersHeight',
+      
+      // Medium Priority
+      'suppressRowHoverHighlight', 'suppressRowClickSelection',
+      'enableRangeHandle', 'suppressClickEdit', 'domLayout',
+      'groupDisplayType', 'groupDefaultExpanded', 'rowGroupPanelShow',
+      'multiSortKey', 'cacheQuickFilter', 'enableCellChangeFlash',
+      
+      // Other Settings
+      'pivotHeaderHeight', 'pivotGroupHeaderHeight',
+      'suppressScrollOnNewData', 'ensureDomOrder', 
+      'alwaysShowVerticalScroll', 'suppressBrowserResizeObserver',
+      'enableRtl', 'suppressColumnMoveAnimation',
+      'cacheBlockSize', 'enableFillHandle', 'suppressRowDrag', 
+      'suppressMovableColumns', 'immutableData', 'deltaRowDataMode', 
+      'rowBuffer', 'rowDragManaged', 'batchUpdateWaitMillis',
+      'rowMultiSelectWithClick', 'rowDeselection', 'suppressRowDeselection',
+      'groupSelectsChildren', 'groupSelectsFiltered',
+      'enterMovesDown', 'enterMovesDownAfterEdit', 'undoRedoCellEditing', 
+      'undoRedoCellEditingLimit', 'stopEditingWhenCellsLoseFocus',
+      'enterNavigatesVertically', 'tabNavigatesVertically',
+      'suppressMenuHide', 'enableBrowserTooltips', 'suppressContextMenu',
+      'suppressCopyRowsToClipboard', 'suppressCopySingleCellRanges',
+      'tooltipShowDelay', 'tooltipHideDelay',
+      'groupIncludeFooter', 'groupIncludeTotalFooter', 'showOpenedGroup',
+      'enableRowGroup', 'suppressDragLeaveHidesColumns',
+      'accentedSort', 'unSortIcon',
+      'suppressCsvExport', 'suppressExcelExport',
+      'enableCharts', 'suppressAriaColCount', 'suppressAriaRowCount'
     ];
 
-    // Apply safe settings first
-    safeSettings.forEach(key => {
+    let settingsApplied = 0;
+    let errors = 0;
+    
+    // Apply all settings at once
+    allSettings.forEach(key => {
       if (settings[key] !== undefined) {
         try {
           gridApi.setGridOption(key, settings[key]);
+          settingsApplied++;
         } catch (err) {
-          console.warn(`Failed to apply safe setting ${key}:`, err);
+          errors++;
         }
       }
     });
 
-    // If not preserving column widths, apply those settings too
+    // Also apply the defaultColDef if specified
     if (!preserveColumnWidths) {
-      // Apply default column definition
       try {
         const defaultColDef = {
           flex: settings.defaultColFlex || 1,
@@ -301,21 +332,30 @@ export function applyGridSettings(
         
         gridApi.setGridOption('defaultColDef', defaultColDef);
       } catch (error) {
-        console.warn("Error applying defaultColDef:", error);
+        errors++;
       }
     }
 
-    // Refresh the grid UI
+    // Final UI refresh to ensure everything is visible
     try {
-      if (gridApi.refreshHeader) gridApi.refreshHeader();
-      if (gridApi.redrawRows) gridApi.redrawRows();
-    } catch (error) {
-      console.warn("Error refreshing grid UI:", error);
+      if (gridApi.refreshCells) {
+        gridApi.refreshCells({ force: true });
+      }
+      if (gridApi.refreshHeader) {
+        gridApi.refreshHeader();
+      }
+    } catch (refreshError) {
+      errors++;
+    }
+
+    // Only log summary info
+    if (errors > 0) {
+      console.info(`Applied ${settingsApplied} grid settings with ${errors} errors`);
     }
 
     return true;
   } catch (error) {
-    console.error("Error applying grid settings:", error);
+    console.error("Error applying grid settings");
     return false;
   }
 }
@@ -331,94 +371,89 @@ export function loadProfileInStages(
   columnState: any[],
   filterModel: any,
   sortModel: any[]
-): { success: boolean; stage: string; error?: any } {
+): { success: boolean; stage: string; error?: any; timing?: { total: number; stages: Record<string, number> } } {
   if (!gridApi) {
     return { success: false, stage: "initialization", error: "Grid API not available" };
   }
 
-  // For AG-Grid 33+, the columnApi methods are merged into the gridApi
-  // Log the loading process for debugging
-  console.log("Loading profile stages:", { 
-    hasGridApi: !!gridApi,
-    hasColumnApi: !!columnApi,
-    hasColumnState: !!(columnState && columnState.length),
-    hasFilterModel: !!filterModel,
-    hasSettings: !!settings
-  });
+  // Start timing the profile loading operation
+  const startTime = performance.now();
+  const stageTiming: Record<string, number> = {};
 
-  // Stage 1: Apply column state (most visible to user)
+  // Stage 1: Apply grid settings first
+  let stageStartTime = performance.now();
   try {
-    if (columnState && columnState.length > 0) {
-      console.log("Applying column state with length:", columnState.length);
-      const columnStateSuccess = applyColumnState(columnApi, columnState, gridApi);
-      if (!columnStateSuccess) {
-        console.warn("Failed to apply column state, but will continue with other settings");
-        // Continue anyway, as we don't want to block the entire profile loading
-      } else {
-        console.log("✓ Column state applied successfully");
-      }
-    }
-  } catch (error) {
-    console.warn("Error in column state application:", error);
-    // Continue anyway, as we don't want to block the entire profile loading
-  }
-
-  // Stage 2: Apply filter model
-  try {
-    if (filterModel) {
-      console.log("Applying filter model");
-      const filterSuccess = applyFilterModel(gridApi, filterModel);
-      if (!filterSuccess) {
-        // Non-critical, continue
-        console.warn("Failed to apply filter model, continuing anyway");
-      } else {
-        console.log("✓ Filter model applied successfully");
-      }
-    }
-  } catch (error) {
-    console.warn("Error in filter model application:", error);
-    // Continue anyway as this is not critical
-  }
-
-  // Stage 3: Apply grid settings (careful not to override column state)
-  try {
-    console.log("Applying grid settings with column state preservation");
     // In AG-Grid 33+, use gridApi for both parameters since column API is merged
     const apiToUse = columnApi || gridApi;
-    const settingsSuccess = applyGridSettings(gridApi, apiToUse, settings, true);
-    if (!settingsSuccess) {
-      console.warn("Failed to apply grid settings fully, but will proceed anyway");
-      // Continue anyway, as some settings might have been applied
-    } else {
-      console.log("✓ Grid settings applied successfully");
+    applyGridSettings(gridApi, apiToUse, settings, true);
+  } catch (error) {
+    // Silent catch - errors logged in applyGridSettings
+  }
+  stageTiming.settings = performance.now() - stageStartTime;
+
+  // Stage 2: Apply column state 
+  stageStartTime = performance.now();
+  try {
+    if (columnState && columnState.length > 0) {
+      applyColumnState(columnApi, columnState, gridApi);
     }
   } catch (error) {
-    console.warn("Error in settings application:", error);
-    // Continue anyway, as we don't want to block the entire profile loading
+    // Silent catch
   }
+  stageTiming.columnState = performance.now() - stageStartTime;
 
-  // Final stage: Refresh the grid
+  // Stage 3: Apply filter model
+  stageStartTime = performance.now();
   try {
-    console.log("Refreshing grid UI");
-    // Use AG-Grid 33+ compatible methods
+    if (filterModel) {
+      applyFilterModel(gridApi, filterModel);
+    }
+  } catch (error) {
+    // Silent catch
+  }
+  stageTiming.filterModel = performance.now() - stageStartTime;
+
+  // Stage 4: Apply sort model
+  stageStartTime = performance.now();
+  try {
+    if (sortModel && sortModel.length > 0 && typeof gridApi.setSortModel === 'function') {
+      gridApi.setSortModel(sortModel);
+    }
+  } catch (error) {
+    // Silent catch
+  }
+  stageTiming.sortModel = performance.now() - stageStartTime;
+  
+  // Final stage: Refresh the grid
+  stageStartTime = performance.now();
+  try {
     if (typeof gridApi.refreshCells === 'function') {
       gridApi.refreshCells({ force: true });
     }
     
-    // Try refreshHeader method (might exist in different versions)
     if (typeof gridApi.refreshHeader === 'function') {
       gridApi.refreshHeader();
-    } else if (typeof gridApi.redrawHeaders === 'function') { 
-      // Alternative method in AG-Grid 33+
-      gridApi.redrawHeaders();
     }
     
-    console.log("✓ Grid refreshed successfully");
+    // Additional refresh for filters
+    if (settings.floatingFilter && typeof gridApi.refreshHeader === 'function') {
+      gridApi.refreshHeader();
+    }
   } catch (error) {
-    console.warn("Error refreshing grid:", error);
-    // Continue anyway as the main settings were applied
+    // Silent catch
   }
+  stageTiming.refresh = performance.now() - stageStartTime;
 
-  // Return success even if some stages had issues, as long as the grid API was available
-  return { success: true, stage: "complete" };
+  // Calculate total time
+  const totalTime = performance.now() - startTime;
+
+  // Return success with timing information
+  return { 
+    success: true, 
+    stage: "complete",
+    timing: {
+      total: Number(totalTime.toFixed(1)),
+      stages: stageTiming
+    }
+  };
 }

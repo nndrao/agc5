@@ -92,6 +92,11 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
     setDarkMode(currentTheme === "dark");
     updateGridTheme(selectedFont.value);
   }, [currentTheme, selectedFont]);
+  
+  // Effect for when grid is ready
+  useEffect(() => {
+    // This effect can be used for initializing grid when API is available
+  }, [gridReady]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -224,28 +229,14 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
   };
 
   const onGridReady = (params: GridReadyEvent) => {
-    console.log('Grid is ready', params);
-    console.log('Grid API available:', !!params.api);
-    
-    // In newer versions of AG Grid, columnApi might be accessed differently
-    // Use 'as any' to handle different AG Grid versions
+    // Get access to grid APIs
     const columnApi = (params as any).columnApi;
-    console.log('Column API available via params:', !!(params as any).columnApi);
     
     // Store grid APIs directly
     if (gridRef.current) {
-      console.log('Setting APIs on gridRef');
-      // Use type assertion for the columnApi assignment
+      // Store grid API references
       gridRef.current.api = params.api;
       (gridRef.current as any).columnApi = columnApi;
-      
-      // Log a message that will help confirm API access later
-      console.log('APIs stored in gridRef. Test access:', {
-        apiAccessible: !!gridRef.current.api,
-        columnApiAccessible: !!(gridRef.current as any).columnApi,
-        apiMethods: Object.keys(gridRef.current.api).slice(0, 5), // Log a few methods to confirm API shape
-        columnApiMethods: columnApi ? Object.keys(columnApi).slice(0, 5) : [] // Log column API methods if available
-      });
     }
     
     setGridReady(true);
@@ -674,7 +665,12 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
           <div className="flex h-[60px] items-center justify-between px-4">
             <div className="flex items-center space-x-2">
               {/* Profile Management Controls */}
-              <ProfileManagerUI gridRef={gridRef} gridSettings={gridSettings} />
+              <ProfileManagerUI 
+                gridRef={gridRef} 
+                gridSettings={gridSettings} 
+                onProfileLoaded={(settings) => setGridSettings(settings)}
+                autoLoadDefaultProfile={gridReady}
+              />
             </div>
 
           <div className="flex items-center space-x-2">
@@ -825,6 +821,7 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
         onApplySettings={(settings) => handleApplySettings(settings, false)}
+        initialSettings={gridSettings}
       />
 
       <ColumnSettingsDialog
