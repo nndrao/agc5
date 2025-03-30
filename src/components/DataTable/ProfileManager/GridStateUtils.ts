@@ -236,6 +236,32 @@ export function applyGridSettings(
   try {
     console.log("Applying grid settings:", { preserveColumnWidths });
 
+    // Get current grid options before applying new ones
+    // This ensures we don't lose settings that aren't explicitly provided
+    const currentOptions: Record<string, any> = {};
+    
+    // List of options we want to preserve if not explicitly overridden
+    const optionsToPreserve = [
+      'headerHeight', 'rowHeight', 'domLayout', 'pagination', 
+      'paginationPageSize', 'animateRows', 'enableCellTextSelection',
+      'tooltipShowDelay', 'tooltipHideDelay', 'groupDefaultExpanded',
+      'groupDisplayType', 'showOpenedGroup', 'rowGroupPanelShow',
+      'suppressDragLeaveHidesColumns', 'multiSortKey', 'accentedSort',
+      'suppressCsvExport', 'suppressExcelExport', 'autoSizePadding',
+      'maintainColumnOrder', 'enableCharts'
+    ];
+    
+    // Get current values of options we want to preserve
+    optionsToPreserve.forEach(key => {
+      try {
+        currentOptions[key] = gridApi.getGridOption(key);
+      } catch (err) {
+        // Ignore errors for options that might not exist
+      }
+    });
+    
+    console.log('Current grid options (before applying):', currentOptions);
+
     // First, prioritize settings that are safe to apply (won't affect column layout)
     const safeSettings = [
       'headerHeight', 'rowHeight', 
@@ -256,6 +282,7 @@ export function applyGridSettings(
 
     // Apply safe settings first using gridApi.setGridOption
     safeSettings.forEach(key => {
+      // Only apply settings that are explicitly provided
       if (settings[key] !== undefined) {
         try {
           // Use AG-Grid 33+ setGridOption method
@@ -264,6 +291,9 @@ export function applyGridSettings(
         } catch (err) {
           console.warn(`Failed to apply safe setting ${key}:`, err);
         }
+      } else if (currentOptions[key] !== undefined) {
+        // If setting is not provided but we have a current value, preserve it
+        console.log(`Preserving current setting: ${key} = ${currentOptions[key]}`);
       }
     });
 

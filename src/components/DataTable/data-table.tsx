@@ -454,8 +454,15 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
   const handleApplySettings = (settings: any, preserveColumnSizes: boolean = false) => {
     console.log(`Applying grid settings (preserveColumnSizes=${preserveColumnSizes}):`, settings);
     
-    // Update the stored settings
-    setGridSettings(settings);
+    // Create a merged settings object that combines the current settings with the new ones
+    // This ensures we don't lose settings that aren't explicitly provided
+    const mergedSettings = {
+      ...gridSettings,  // Start with all current settings
+      ...settings       // Override with the new settings
+    };
+    
+    // Update the stored settings with the merged settings
+    setGridSettings(mergedSettings);
     
     if (!gridRef.current || !gridRef.current.api) {
       console.warn('Grid API not available, cannot apply settings');
@@ -759,7 +766,9 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
       // Auto-save the updated settings to the current profile
       const filterModel = gridApi.getFilterModel ? gridApi.getFilterModel() : {};
       const sortModel = getSortModelFromColumnState(currentColumnState);
-      saveSettingsToProfile(settings, currentColumnState);
+      
+      // Use the merged settings when saving to the profile
+      saveSettingsToProfile(mergedSettings, currentColumnState);
     } catch (error) {
       console.warn('Error refreshing grid after settings applied', error);
     }

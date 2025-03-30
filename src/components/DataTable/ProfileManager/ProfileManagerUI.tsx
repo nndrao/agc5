@@ -200,7 +200,7 @@ export function ProfileManagerUI({ gridRef, gridSettings, onSettingsChange }: Pr
 
     try {
       // Update the current profile with the new state
-      updateCurrentProfile(
+      const success = updateCurrentProfile(
         // Make sure we save all merged grid settings
         mergedSettings,
         columnState,
@@ -208,8 +208,19 @@ export function ProfileManagerUI({ gridRef, gridSettings, onSettingsChange }: Pr
         sortModel
       );
 
-      console.log('Profile saved successfully:', selectedProfileId);
-      toast.success('Profile saved');
+      if (success) {
+        console.log('Profile saved successfully:', selectedProfileId);
+        toast.success('Profile saved');
+        
+        // Update the parent component's settings state to ensure consistency
+        if (onSettingsChange) {
+          console.log('Updating parent component with merged settings after save');
+          onSettingsChange(mergedSettings);
+        }
+      } else {
+        console.error('Failed to update profile');
+        toast.error('Failed to save profile');
+      }
     } catch (error) {
       console.error('Error saving profile:', error);
       toast.error('Failed to save profile');
