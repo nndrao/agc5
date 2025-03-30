@@ -15,12 +15,12 @@ interface ColumnEditorProps {
 
 export function ColumnEditor({ columnId, state, onChange }: ColumnEditorProps) {
   return (
-    <div className="p-4">
+    <div className="p-4 dark:text-gray-200">
       <Tabs defaultValue="general">
-        <TabsList className="w-full">
-          <TabsTrigger value="general" className="flex-1">General</TabsTrigger>
-          <TabsTrigger value="header" className="flex-1">Header</TabsTrigger>
-          <TabsTrigger value="cell" className="flex-1">Cell</TabsTrigger>
+        <TabsList className="w-full dark:bg-gray-700">
+          <TabsTrigger value="general" className="flex-1 dark:data-[state=active]:bg-gray-800">General</TabsTrigger>
+          <TabsTrigger value="header" className="flex-1 dark:data-[state=active]:bg-gray-800">Header</TabsTrigger>
+          <TabsTrigger value="cell" className="flex-1 dark:data-[state=active]:bg-gray-800">Cell</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" className="space-y-4 mt-4">

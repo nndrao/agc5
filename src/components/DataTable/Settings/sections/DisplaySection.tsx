@@ -8,16 +8,16 @@ import type { SettingsSectionProps } from "../types";
 
 export function DisplaySection({ settings, onSettingChange }: SettingsSectionProps) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 dark:text-gray-200">
       {/* Row Height Settings */}
       <div className="space-y-4">
         <div className="flex items-center gap-2">
-          <div className="flex items-center justify-center w-6 h-6 rounded-md bg-primary/10">
+          <div className="flex items-center justify-center w-6 h-6 rounded-md bg-primary/10 dark:bg-primary/20">
             <span className="text-[12px] font-medium text-primary">Rh</span>
           </div>
           <div>
-            <h4 className="text-[14px] font-medium">Row Height</h4>
-            <p className="text-[12px] text-muted-foreground">
+            <h4 className="text-[14px] font-medium dark:text-gray-100">Row Height</h4>
+            <p className="text-[12px] text-muted-foreground dark:text-gray-400">
               Adjust the height of grid rows in pixels
             </p>
           </div>
