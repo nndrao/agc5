@@ -51,7 +51,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { GeneralSettingsDialog } from "./Settings/GeneralSettingsDialog";
-import { ColumnSettingsDialog } from "./Settings/ColumnSettings/ColumnSettingsDialog";
+import { ColumnSettingsDialog } from './ColumnSettings/ColumnSettingsDialog';
 import { defaultGridSettings } from "./Settings/defaultSettings";
 import { ProfileProvider, ProfileManagerUI } from "./ProfileManager";
 import { useProfileContext } from "./ProfileManager/ProfileContext";
@@ -61,6 +61,7 @@ import { ModuleRegistry, themeQuartz, GridReadyEvent } from "ag-grid-community";
 import { AllEnterpriseModule } from "ag-grid-enterprise";
 import { AgGridReact } from "ag-grid-react";
 import { Toaster, toast } from "sonner";
+import { useGridStore } from './store/gridStore';
 
 ModuleRegistry.registerModules([AllEnterpriseModule]);
 
@@ -86,17 +87,34 @@ export function DataTableWithProfiles<TData, TValue>(props: DataTableProps<TData
 }
 
 export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>) {
+  return <DataTableInner data={data} />;
+}
+
+function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
+  // Access store
+  const { 
+    columnState,
+    setColumnState,
+    settings: gridSettings,
+    setSettings,
+    filterModel,
+    setFilterModel,
+    sortModel, 
+    setSortModel,
+    isColumnSettingsOpen,
+    setColumnSettingsOpen,
+    isApplyingColumnChanges,
+    setApplyingColumnChanges
+  } = useGridStore();
+
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { theme: currentTheme, setTheme } = useTheme();
   const [selectedFont, setSelectedFont] = useState(monospacefonts[0]);
   const [gridTheme, setGridTheme] = useState(themeQuartz);
   const [open, setOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [columnSettingsOpen, setColumnSettingsOpen] = useState(false);
   const gridRef = useRef<AgGridReact>(null);
   const [gridReady, setGridReady] = useState(false);
-  // Store the current grid settings
-  const [gridSettings, setGridSettings] = useState(defaultGridSettings);
   
   // Access the profile context to get profile data
   const { 
@@ -107,6 +125,23 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
     loadProfileById,
     updateCurrentProfile
   } = useProfileContext();
+
+  // Watch for column settings dialog open/close
+  useEffect(() => {
+    if (isColumnSettingsOpen) {
+      console.log('Column settings dialog opened - disabling auto column updates');
+      setApplyingColumnChanges(true);
+    } else {
+      // When dialog closes, wait for any pending column changes to complete
+      console.log('Column settings dialog closed - waiting for changes to complete');
+      
+      // Use a shorter delay since we're already waiting in the dialog
+      setTimeout(() => {
+        console.log('Re-enabling auto column updates after changes complete');
+        setApplyingColumnChanges(false);
+      }, 100); // Reduced from 1000ms to 100ms
+    }
+  }, [isColumnSettingsOpen, setApplyingColumnChanges]);
 
   // Initialize grid settings from the selected profile
   useEffect(() => {
@@ -126,7 +161,7 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
               // Update the gridSettings state with the profile settings
               if (profile.settings) {
                 console.log('Updating gridSettings state from loaded profile');
-                setGridSettings(profile.settings);
+                setSettings(profile.settings);
               }
             } else {
               console.error('Profile not found or could not be loaded');
@@ -142,7 +177,7 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
         const selectedProfile = profiles.find(p => p.id === selectedProfileId);
         if (selectedProfile?.settings) {
           console.log('Grid API not ready, only initializing settings state from profile:', selectedProfile.name);
-          setGridSettings(selectedProfile.settings);
+          setSettings(selectedProfile.settings);
         }
       }
     } else if (!gridReady) {
@@ -210,7 +245,7 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
       
       // Update grid settings with fixed rowSelection
       console.log('Setting corrected rowSelection:', rowSelection);
-      setGridSettings(prev => ({
+      setSettings(prev => ({
         ...prev,
         rowSelection
       }));
@@ -219,20 +254,16 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
 
   // Ensure rowSelection is always a valid object
   const getValidRowSelection = (rowSelection: any) => {
-    if (validateRowSelectionType(rowSelection)) {
-      return rowSelection;
-    }
-    
-    // Create a default rowSelection object
+    // Always return a properly formatted object with required type property
     return {
-      type: 'multiRow' as const,  // Default to multiRow
+      type: (rowSelection?.type === 'singleRow' ? 'singleRow' : 'multiRow') as ('singleRow' | 'multiRow'),
       enableClickSelection: rowSelection?.enableClickSelection !== undefined 
         ? rowSelection.enableClickSelection 
         : !gridSettings.suppressRowClickSelection,
       enableSelectionWithoutKeys: rowSelection?.enableSelectionWithoutKeys !== undefined 
         ? rowSelection.enableSelectionWithoutKeys 
         : !!gridSettings.rowMultiSelectWithClick,
-      groupSelects: rowSelection?.groupSelects || 'descendants',
+      groupSelects: rowSelection?.groupSelects || 'filteredDescendants',
       copySelectedRows: rowSelection?.copySelectedRows !== undefined 
         ? rowSelection.copySelectedRows 
         : !gridSettings.suppressCopyRowsToClipboard
@@ -397,29 +428,44 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
   };
 
   const onGridReady = (params: GridReadyEvent) => {
-    console.log('Grid is ready', params);
-    console.log('Grid API available:', !!params.api);
+    console.log("Grid Ready!");
+    setGridReady(true);
     
-    // In AG-Grid 33+, column API methods are now part of the main grid API
-    // We don't need to access columnApi separately
+    const gridApi = params.api;
     
-    // Store grid API directly
-    if (gridRef.current) {
-      console.log('Setting API on gridRef');
-      gridRef.current.api = params.api;
-      
-      // For compatibility with any code that might still reference columnApi
-      // Just point columnApi to the same gridApi
-      (gridRef.current as any).columnApi = params.api;
-      
-      // Log a message that will help confirm API access
-      console.log('API stored in gridRef. Test access:', {
-        apiAccessible: !!gridRef.current.api,
-        apiMethods: Object.keys(gridRef.current.api).slice(0, 5), // Log a few methods to confirm API shape
-      });
+    // In AG-Grid 33+, columnApi is merged into gridApi
+    if (!gridApi) {
+      console.error("Grid API is undefined in onGridReady");
+      return;
     }
     
-    setGridReady(true);
+    // If we have column state in the store, apply it to the grid
+    if (columnState.length > 0) {
+      gridApi.applyColumnState({
+        state: columnState,
+        applyOrder: true
+      });
+    } else {
+      // Otherwise, get the column state from the grid and update the store
+      setColumnState(gridApi.getColumnState());
+    }
+    
+    // Same for filter model
+    if (filterModel && Object.keys(filterModel).length > 0) {
+      gridApi.setFilterModel(filterModel);
+    } else {
+      setFilterModel(gridApi.getFilterModel());
+    }
+    
+    // For sort model in AG-Grid 33+, we need to extract from column state
+    if (sortModel && sortModel.length > 0) {
+      gridApi.setSortModel(sortModel);
+    } else {
+      // Get the column state and extract sort model from it
+      const currentColumnState = gridApi.getColumnState();
+      const currentSortModel = getSortModelFromColumnState(currentColumnState);
+      setSortModel(currentSortModel);
+    }
     
     // Load the selected profile if it exists
     if (selectedProfileId) {
@@ -435,7 +481,7 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
             // Update the gridSettings state with the profile settings
             if (profile.settings) {
               console.log('Updating gridSettings state from profile loaded in onGridReady');
-              setGridSettings(profile.settings);
+              setSettings(profile.settings);
             }
           } else {
             console.error('Profile not found or could not be loaded from onGridReady');
@@ -451,6 +497,28 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
     }
   };
 
+  // Event handlers for grid events - use AG-Grid 33+ compatible event names
+  const onColumnMoved = (event: any) => {
+    if (event.api && !isApplyingColumnChanges) {
+      setColumnState(event.api.getColumnState());
+    }
+  };
+
+  const onFilterChanged = (event: any) => {
+    if (event.api) {
+      setFilterModel(event.api.getFilterModel());
+    }
+  };
+
+  const onSortChanged = (event: any) => {
+    if (event.api) {
+      // In AG-Grid 33+, get sort model from column state
+      const columnState = event.api.getColumnState();
+      const sortModel = getSortModelFromColumnState(columnState);
+      setSortModel(sortModel);
+    }
+  };
+
   const handleApplySettings = (settings: any, preserveColumnSizes: boolean = false) => {
     console.log(`Applying grid settings (preserveColumnSizes=${preserveColumnSizes}):`, settings);
     
@@ -462,7 +530,10 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
     };
     
     // Update the stored settings with the merged settings
-    setGridSettings(mergedSettings);
+    setSettings(mergedSettings);
+    
+    // Update context
+    setSettings(mergedSettings);
     
     if (!gridRef.current || !gridRef.current.api) {
       console.warn('Grid API not available, cannot apply settings');
@@ -1024,7 +1095,7 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
                 // Update the gridSettings state with the profile settings
                 if (profile.settings) {
                   console.log('Updating gridSettings state from profile loaded on retry');
-                  setGridSettings(profile.settings);
+                  setSettings(profile.settings);
                 }
               } else {
                 console.error('Profile not found or could not be loaded on retry');
@@ -1051,6 +1122,25 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
     });
   }, [gridSettings]);
 
+  // Additional event handlers for better column state tracking
+  const onColumnResized = (event: any) => {
+    console.log('Column resized, updating state');
+    if (event.api && !isApplyingColumnChanges) {
+      // Don't update immediately during resize to avoid performance issues
+      // Use a debounce approach to only update when resize is complete
+      if (event.finished) {
+        setColumnState(event.api.getColumnState());
+      }
+    }
+  };
+
+  const onGridSizeChanged = (event: any) => {
+    // Handle grid size changes that might affect column state
+    if (event.api) {
+      logColumnWidths(event.api, 'Grid size changed - current column widths');
+    }
+  };
+
   return (
     <div className="flex h-full flex-col rounded-md border bg-card">
       {/* Toast notifications for profile actions */}
@@ -1065,7 +1155,7 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
             <ProfileManagerUI 
               gridRef={gridRef} 
               gridSettings={gridSettings}
-              onSettingsChange={setGridSettings}
+              onSettingsChange={setSettings}
             />
           </div>
 
@@ -1142,7 +1232,14 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
                   <Sliders className="mr-2 h-4 w-4" />
                   <span>General Settings</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setColumnSettingsOpen(true)}>
+                <DropdownMenuItem onClick={() => {
+                  // Only open column settings if grid is ready
+                  if (gridRef.current?.api) {
+                    setColumnSettingsOpen(true);
+                  } else {
+                    console.warn('Grid API not ready yet, cannot open column settings');
+                  }
+                }}>
                   <Columns className="mr-2 h-4 w-4" />
                   <span>Column Settings</span>
                 </DropdownMenuItem>
@@ -1218,6 +1315,11 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
         defaultColDef={defaultColDef}
         sideBar={true}
         onGridReady={onGridReady}
+        onColumnMoved={onColumnMoved}
+        onFilterChanged={onFilterChanged}
+        onSortChanged={onSortChanged}
+        onColumnResized={onColumnResized}
+        onGridSizeChanged={onGridSizeChanged}
         // Use rowSelection object format to avoid deprecation warnings
         rowSelection={getValidRowSelection(gridSettings.rowSelection)}
         // For flash effects - use proper duration properties instead of enableCellChangeFlash
@@ -1272,10 +1374,9 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
     />
 
     <ColumnSettingsDialog
-      open={columnSettingsOpen}
+      open={isColumnSettingsOpen}
       onOpenChange={setColumnSettingsOpen}
-      gridRef={gridRef}
-      fallbackColumnDefs={columnDefs}
+      gridApi={gridRef.current?.api}
     />
   </div>
 );

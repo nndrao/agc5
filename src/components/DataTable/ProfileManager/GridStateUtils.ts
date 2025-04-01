@@ -457,86 +457,58 @@ export function applyGridSettings(
  */
 export const loadProfileInStages = (
   gridApi: any,
-  columnApi: any, // For backward compatibility with AG-Grid < 33
-  settings: GridSettings | undefined,
+  columnApi?: any, // Deprecated in AG-Grid 33+. Only kept for backward compatibility
+  settings?: GridSettings,
   columnState: any[] = [],
   filterModel: any = {},
   sortModel: any[] = []
 ): { success: boolean; error?: any; stage?: string } => {
-  if (!gridApi) {
-    console.error('Grid API not available for loading profile');
-    return { success: false, error: 'Grid API not available', stage: 'initialization' };
-  }
-
-  console.log('Loading profile in stages...', {
-    hasSettings: !!settings,
-    settingsCount: settings ? Object.keys(settings).length : 0,
-    columnStateCount: columnState?.length || 0,
-    hasFilterModel: !!filterModel && Object.keys(filterModel || {}).length > 0,
-    sortModelCount: sortModel?.length || 0
-  });
-
   try {
-    // Stage 1: Apply grid settings first
-    if (settings && Object.keys(settings).length > 0) {
-      console.log('Stage 1: Applying grid settings', { 
-        settingsCount: Object.keys(settings).length,
-        keySample: Object.keys(settings).slice(0, 5)
-      });
-      
-      // Validate settings object to make sure it's a valid object
-      if (typeof settings !== 'object') {
-        console.error('Settings is not a valid object:', settings);
-        return { success: false, error: 'Invalid settings format', stage: 'settings' };
-      }
-      
+    if (!gridApi) {
+      console.warn("GridAPI not available, cannot load profile");
+      return { success: false, error: "GridAPI not available" };
+    }
+    
+    // STAGE 1: Apply settings
+    if (settings) {
       try {
-        const result = applyGridSettings(gridApi, settings, false);
+        const result = applyGridSettings(gridApi, settings);
         if (!result.success) {
-          console.error('Failed to apply grid settings:', result.error || 'Unknown error');
-          return { success: false, error: result.error || 'Unknown error applying settings', stage: 'settings' };
+          return { success: false, stage: "settings", error: result.error };
         }
       } catch (error) {
-        console.error('Exception when applying grid settings:', error);
-        return { success: false, error: error || 'Exception applying settings', stage: 'settings' };
+        console.error("Error applying settings:", error);
+        return { success: false, stage: "settings", error };
       }
-    } else {
-      console.log('No grid settings to apply');
     }
-
-    // Stage 2: Apply column state (may include column visibility, order, width, etc.)
+    
+    // STAGE 2: Apply column state
     if (columnState && columnState.length > 0) {
-      console.log('Stage 2: Applying column state', { 
-        columnCount: columnState.length,
-        sampleColumn: columnState[0]
-      });
-      
       try {
-        // In AG-Grid 33+, use gridApi for applyColumnState
+        // Always prefer gridApi.applyColumnState (AG-Grid 33+)
         if (gridApi.applyColumnState) {
           gridApi.applyColumnState({
             state: columnState,
-            applyOrder: true  // Ensure column order is applied
+            applyOrder: true
           });
-        } 
-        // Backward compatibility with older AG-Grid versions
+        }
+        // Fallback for older versions
         else if (columnApi && columnApi.applyColumnState) {
           columnApi.applyColumnState({
             state: columnState,
             applyOrder: true
           });
         } else {
-          console.warn('No method found to apply column state');
+          console.warn("Cannot apply column state - required API method not available");
+          return { success: false, stage: "columns", error: "API method not available" };
         }
-      } catch (columnError) {
-        console.error('Error applying column state:', columnError);
-        return { success: false, error: columnError, stage: 'columnState' };
+      } catch (error) {
+        console.error("Error applying column state:", error);
+        return { success: false, stage: "columns", error };
       }
-    } else {
-      console.log('No column state to apply');
     }
 
-    // Stage 3: Apply filter model
+    // STAGE 3: Apply filter model
     if (filterModel && Object.keys(filterModel).length > 0) {
       console.log('Stage 3: Applying filter model', { 
         filterCount: Object.keys(filterModel).length,
@@ -557,7 +529,7 @@ export const loadProfileInStages = (
       console.log('No filter model to apply');
     }
 
-    // Stage 4: Apply sort model
+    // STAGE 4: Apply sort model
     if (sortModel && sortModel.length > 0) {
       console.log('Stage 4: Applying sort model', { 
         sortCount: sortModel.length,
@@ -593,7 +565,7 @@ export const loadProfileInStages = (
       console.log('No sort model to apply');
     }
 
-    // Stage 5: Final grid refresh
+    // STAGE 5: Final grid refresh
     console.log('Stage 5: Performing final grid refresh');
     try {
       if (gridApi.refreshCells) {
