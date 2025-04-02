@@ -911,101 +911,250 @@ export function ColumnSettingsDialog({
   // Render the dialog
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle>Column Settings</DialogTitle>
-          <DialogDescription className="sr-only">
-            Configure column properties including visibility, header and cell styling, formatting, and component options.
-          </DialogDescription>
+      <DialogContent 
+        className="max-w-6xl h-[85vh] flex flex-col bg-white dark:bg-gray-900 backdrop-blur-sm border-gray-300 dark:border-gray-700"
+        overlayClassName="bg-black/40 backdrop-blur-sm"
+      >
+        <DialogHeader className="flex flex-row items-center justify-between pb-4 border-b border-gray-200 dark:border-gray-800">
+          <div>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect width="6" height="16" x="4" y="4" rx="1"></rect>
+                <rect width="6" height="16" x="14" y="4" rx="1"></rect>
+              </svg>
+              Column Settings
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground/90 mt-1">
+              Configure column properties including visibility, styling, formatting, and components.
+            </DialogDescription>
+          </div>
           <div className="flex items-center gap-2">
             <Button 
               variant="outline" 
               size="icon" 
               onClick={handleUndo}
               disabled={changeIndex < 0}
+              className="h-9 w-9 border-gray-300 dark:border-gray-700 transition-all"
             >
               <Undo2 className="h-4 w-4" />
+              <span className="sr-only">Undo</span>
             </Button>
             <Button 
               variant="outline"
               size="icon" 
               onClick={handleRedo}
               disabled={changeIndex >= changeHistory.length - 1}
+              className="h-9 w-9 border-gray-300 dark:border-gray-700 transition-all"
             >
               <Redo2 className="h-4 w-4" />
+              <span className="sr-only">Redo</span>
             </Button>
           </div>
         </DialogHeader>
         
-        <div className="flex flex-1 overflow-hidden">
-          {/* Column List Sidebar */}
-          <div className="w-64 border-r pr-2">
-            <ColumnList 
-              columns={localColumnState}
-              selectedColumnId={selectedColumnId}
-              onColumnSelect={handleColumnSelect}
-              onToggleVisibility={handleToggleVisibility}
-            />
+        <div className="flex flex-1 overflow-hidden pt-4 gap-6">
+          {/* Left Column - Columns list */}
+          <div className="w-64 pr-5 border-r border-gray-200 dark:border-gray-800">
+            <div className="bg-muted/20 rounded-lg p-3 mb-3">
+              <h3 className="text-sm font-medium mb-1 flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect>
+                  <path d="M3 9h18"></path>
+                  <path d="M9 21V9"></path>
+                </svg>
+                Grid Columns
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Select a column to customize its appearance and behavior.
+              </p>
+            </div>
+            <div className="h-[calc(85vh-260px)] overflow-y-auto pr-1">
+              <ColumnList 
+                columns={localColumnState}
+                selectedColumnId={selectedColumnId}
+                onColumnSelect={handleColumnSelect}
+                onToggleVisibility={handleToggleVisibility}
+              />
+            </div>
           </div>
           
-          {/* Column Editor */}
-          <div className="flex-1 pl-4">
+          {/* Right Column - Settings */}
+          <div className="flex-1 pl-1 overflow-hidden flex flex-col">
             {selectedColumn ? (
-              <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="mb-4">
-                  <TabsTrigger value="header">Header</TabsTrigger>
-                  <TabsTrigger value="cell">Cell</TabsTrigger>
-                  <TabsTrigger value="formatting">Formatting</TabsTrigger>
-                  <TabsTrigger value="component">Component</TabsTrigger>
-                </TabsList>
+              <div className="flex flex-col h-full">
+                {/* Column Info and Settings Type */}
+                <div className="flex items-center justify-between mb-4">
+                  <div className="px-3 py-1.5 bg-muted/20 rounded-lg flex items-center">
+                    <span className="font-medium text-sm mr-2">Column:</span> 
+                    <span className="px-2 py-0.5 bg-primary/10 rounded text-sm font-medium text-primary">{selectedColumn.headerName || selectedColumn.field || selectedColumn.colId}</span>
+                  </div>
+                  
+                  <div className="space-x-1 flex">
+                    <Button 
+                      variant={activeTab === 'header' ? 'default' : 'outline'} 
+                      size="sm"
+                      className={`h-8 ${activeTab === 'header' ? 'bg-primary text-primary-foreground' : 'border-gray-300 dark:border-gray-700'}`}
+                      onClick={() => setActiveTab('header')}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M6 4h12l-6 16-6-16z"></path>
+                      </svg>
+                      Header
+                    </Button>
+                    <Button 
+                      variant={activeTab === 'cell' ? 'default' : 'outline'} 
+                      size="sm"
+                      className={`h-8 ${activeTab === 'cell' ? 'bg-primary text-primary-foreground' : 'border-gray-300 dark:border-gray-700'}`}
+                      onClick={() => setActiveTab('cell')}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+                      </svg>
+                      Cell
+                    </Button>
+                    <Button 
+                      variant={activeTab === 'formatting' ? 'default' : 'outline'} 
+                      size="sm"
+                      className={`h-8 ${activeTab === 'formatting' ? 'bg-primary text-primary-foreground' : 'border-gray-300 dark:border-gray-700'}`}
+                      onClick={() => setActiveTab('formatting')}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M4 7V4h16v3"></path>
+                        <path d="M9 20h6"></path>
+                        <path d="M12 4v16"></path>
+                      </svg>
+                      Format
+                    </Button>
+                    <Button 
+                      variant={activeTab === 'component' ? 'default' : 'outline'} 
+                      size="sm"
+                      className={`h-8 ${activeTab === 'component' ? 'bg-primary text-primary-foreground' : 'border-gray-300 dark:border-gray-700'}`}
+                      onClick={() => setActiveTab('component')}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="16 18 22 12 16 6"></polyline>
+                        <polyline points="8 6 2 12 8 18"></polyline>
+                      </svg>
+                      Component
+                    </Button>
+                  </div>
+                </div>
                 
-                <ScrollArea className="h-[calc(80vh-180px)]">
-                  <TabsContent value="header" className="m-0">
-                    <HeaderSettings 
-                      column={selectedColumn}
-                      onChange={(property: keyof ExtendedColumnState, value: unknown) => handleColumnChange(selectedColumn.colId, property, value)}
-                      onApplyToGroup={handleApplyToGroup}
-                    />
-                  </TabsContent>
-                  
-                  <TabsContent value="cell" className="m-0">
-                    <CellSettings 
-                      column={selectedColumn}
-                      onChange={(property: keyof ExtendedColumnState, value: unknown) => handleColumnChange(selectedColumn.colId, property, value)}
-                      onApplyToGroup={handleApplyToGroup}
-                    />
-                  </TabsContent>
-                  
-                  <TabsContent value="formatting" className="m-0">
-                    <FormattingSettings 
-                      column={selectedColumn}
-                      onChange={(property: keyof ExtendedColumnState, value: unknown) => handleColumnChange(selectedColumn.colId, property, value)}
-                      onApplyToGroup={handleApplyToGroup}
-                    />
-                  </TabsContent>
-                  
-                  <TabsContent value="component" className="m-0">
-                    <ComponentSettings 
-                      column={selectedColumn}
-                      onChange={(property: keyof ExtendedColumnState, value: unknown) => handleColumnChange(selectedColumn.colId, property, value)}
-                      onApplyToGroup={handleApplyToGroup}
-                    />
-                  </TabsContent>
-                </ScrollArea>
-              </Tabs>
+                {/* Content Area */}
+                <div className="flex-1 overflow-hidden bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm">
+                  <div className="p-5 flex flex-col h-full">
+                    <h3 className="text-lg font-medium mb-4 pb-2 border-b border-gray-200 dark:border-gray-800 flex items-center">
+                      {activeTab === 'header' && (
+                        <>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M6 4h12l-6 16-6-16z"></path>
+                          </svg>
+                          Header Settings
+                        </>
+                      )}
+                      {activeTab === 'cell' && (
+                        <>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+                          </svg>
+                          Cell Styling
+                        </>
+                      )}
+                      {activeTab === 'formatting' && (
+                        <>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M4 7V4h16v3"></path>
+                            <path d="M9 20h6"></path>
+                            <path d="M12 4v16"></path>
+                          </svg>
+                          Value Formatting
+                        </>
+                      )}
+                      {activeTab === 'component' && (
+                        <>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="16 18 22 12 16 6"></polyline>
+                            <polyline points="8 6 2 12 8 18"></polyline>
+                          </svg>
+                          Component Settings
+                        </>
+                      )}
+                    </h3>
+                    
+                    <ScrollArea className="flex-1">
+                      <div className="pr-3">
+                        {activeTab === 'header' && (
+                          <HeaderSettings 
+                            column={selectedColumn}
+                            onChange={(property: keyof ExtendedColumnState, value: unknown) => 
+                              handleColumnChange(selectedColumn.colId, property, value)}
+                            onApplyToGroup={handleApplyToGroup}
+                          />
+                        )}
+                        
+                        {activeTab === 'cell' && (
+                          <CellSettings 
+                            column={selectedColumn}
+                            onChange={(property: keyof ExtendedColumnState, value: unknown) => 
+                              handleColumnChange(selectedColumn.colId, property, value)}
+                            onApplyToGroup={handleApplyToGroup}
+                          />
+                        )}
+                        
+                        {activeTab === 'formatting' && (
+                          <FormattingSettings 
+                            column={selectedColumn}
+                            onChange={(property: keyof ExtendedColumnState, value: unknown) => 
+                              handleColumnChange(selectedColumn.colId, property, value)}
+                            onApplyToGroup={handleApplyToGroup}
+                          />
+                        )}
+                        
+                        {activeTab === 'component' && (
+                          <ComponentSettings 
+                            column={selectedColumn}
+                            onChange={(property: keyof ExtendedColumnState, value: unknown) => 
+                              handleColumnChange(selectedColumn.colId, property, value)}
+                            onApplyToGroup={handleApplyToGroup}
+                          />
+                        )}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                </div>
+              </div>
             ) : (
-              <div className="flex h-full items-center justify-center text-muted-foreground">
-                Select a column to edit
+              <div className="flex h-full items-center justify-center text-muted-foreground bg-muted/10 rounded-lg p-8 border border-dashed border-muted">
+                <div className="text-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto mb-4 text-muted-foreground/30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
+                    <rect width="8" height="14" x="8" y="5" rx="1"></rect>
+                    <path d="M4 2v20"></path>
+                    <path d="M20 2v20"></path>
+                  </svg>
+                  <h3 className="text-base font-medium mb-1">No Column Selected</h3>
+                  <p className="text-sm">Select a column from the list to edit its properties</p>
+                </div>
               </div>
             )}
           </div>
         </div>
         
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <DialogFooter className="border-t border-gray-200 dark:border-gray-800 pt-4 mt-2">
+          <div className="text-xs text-muted-foreground mr-auto">
+            {isDirty 
+              ? `${changeHistory.length} change${changeHistory.length !== 1 ? 's' : ''} pending` 
+              : 'No changes made'}
+          </div>
+          <Button 
+            variant="outline" 
+            onClick={() => onOpenChange(false)}
+            className="border-gray-300 dark:border-gray-700">
             Cancel
           </Button>
-          <Button onClick={handleApply} disabled={!isDirty}>
+          <Button 
+            onClick={handleApply} 
+            disabled={!isDirty}
+            className={`${isDirty ? 'shadow-md hover:shadow-lg' : ''} transition-all`}>
             Apply Changes
           </Button>
         </DialogFooter>

@@ -43,7 +43,7 @@ export const defaultGridSettings: GridSettings = {
   // Use valid asyncTransactionWaitMillis instead of batchUpdateWaitMillis
   asyncTransactionWaitMillis: 50,
 
-  // Selection - use object format with type as recommended in AG-Grid 33+
+  // Selection - use object format with type as required in AG-Grid 33+
   rowSelection: {
     type: 'multiRow',
     enableSelectionWithoutKeys: false, // Replaces rowMultiSelectWithClick

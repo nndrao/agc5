@@ -1021,11 +1021,11 @@ function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
     // Create updated defaultColDef with sortingOrder
     const updatedDefaultColDef = {
       ...defaultColDef,
-      // Move sortingOrder from grid-level to defaultColDef as per AG-Grid 33+ recommendation
+      // Move sortingOrder from grid-level to defaultColDef as per AG-Grid 33+ requirement
       sortingOrder: gridSettings.sortingOrder || gridSettings.defaultColSortingOrder || ['asc', 'desc', null],
-      // Move unSortIcon from grid-level to defaultColDef as per AG-Grid 33+ recommendation
+      // Move unSortIcon from grid-level to defaultColDef as per AG-Grid 33+ requirement
       unSortIcon: gridSettings.unSortIcon || gridSettings.defaultColUnSortIcon || false,
-      // In AG-Grid 33+, enableRowGroup should only be used at column level, not grid level
+      // In AG-Grid 33+, enableRowGroup must only be used at column level, not grid level
       enableRowGroup: gridSettings.enableRowGroup
     };
     
@@ -1093,7 +1093,7 @@ function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
       // Using groupTotalRow and grandTotalRow directly in component props
       showOpenedGroup: gridSettings.showOpenedGroup,
       rowGroupPanelShow: gridSettings.rowGroupPanelShow,
-      // removing invalid enableRowGroup (should be in defaultColDef only)
+      // removing invalid enableRowGroup (must be in defaultColDef only in AG-Grid 33+)
       suppressDragLeaveHidesColumns: gridSettings.suppressDragLeaveHidesColumns,
       
       // Sorting

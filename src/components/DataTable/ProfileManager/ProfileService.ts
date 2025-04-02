@@ -1,6 +1,6 @@
 /**
  * ProfileService.ts
- * A robust service for managing grid profiles with proper error handling and type safety.
+ * A robust service for managing AG-Grid 33+ profiles with proper error handling and type safety.
  */
 
 import { GridSettings } from "../Settings/types";

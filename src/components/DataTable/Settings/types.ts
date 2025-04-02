@@ -54,14 +54,14 @@ export interface GridSettings {
   getRowId?: Function;
 
   // Selection
-  // In AG-Grid 33+, rowSelection should be an object with a type property
+  // In AG-Grid 33+, rowSelection must be an object with a type property
   rowSelection: {
     type: 'singleRow' | 'multiRow';
     enableClickSelection?: boolean;
     enableSelectionWithoutKeys?: boolean;
     groupSelects?: 'children' | 'descendants' | 'filteredDescendants';
     copySelectedRows?: boolean;
-  } | 'singleRow' | 'multiRow' | 'single' | 'multiple'; // Legacy string support for backward compatibility
+  } | 'singleRow' | 'multiRow' | 'single' | 'multiple'; // Legacy string support only for migration
   // Legacy property kept for backward compatibility
   rowMultiSelectWithClick?: boolean;
 

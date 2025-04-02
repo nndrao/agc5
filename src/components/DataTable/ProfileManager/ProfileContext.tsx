@@ -1,6 +1,6 @@
 /**
  * ProfileContext.tsx
- * React context for managing profile state across components
+ * React context for managing AG-Grid 33+ profile state across components
  */
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
@@ -116,7 +116,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         console.log(`Directly applying profile to grid: ${profile.name}`);
         try {
           // Import GridStateUtils dynamically to avoid circular dependencies
-          // using import() instead of require()
+          // Note: In AG-Grid 33+, columnApi is merged into gridApi, so we pass gridApi for both params
           const GridStateUtils = await import('./GridStateUtils');
           
           const result = GridStateUtils.loadProfileInStages(
