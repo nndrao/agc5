@@ -17,11 +17,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
+import { ExtendedColumnState } from './types';
 
 interface CellSettingsProps {
-  column: any;
-  onChange: (property: string, value: any) => void;
-  onApplyToGroup: (property: string, value: any) => void;
+  column: ExtendedColumnState;
+  onChange: (property: keyof ExtendedColumnState, value: unknown) => void;
+  onApplyToGroup: (property: keyof ExtendedColumnState, value: unknown) => void;
 }
 
 // Font families list
@@ -107,39 +108,21 @@ export function CellSettings({
           </Button>
         </div>
         
-        <div className="flex gap-2">
-          <Button
-            variant={column.cellAlignment === 'left' ? 'default' : 'outline'}
-            size="icon"
-            onClick={() => onChange('cellAlignment', 'left')}
-            title="Align Left"
+        <div className="space-y-2">
+          <Label>Alignment</Label>
+          <Select
+            value={column.cellAlignment || 'left'}
+            onValueChange={(value) => onChange('cellAlignment', value)}
           >
-            <AlignLeft className="h-4 w-4" />
-          </Button>
-          <Button
-            variant={column.cellAlignment === 'center' ? 'default' : 'outline'}
-            size="icon"
-            onClick={() => onChange('cellAlignment', 'center')}
-            title="Align Center"
-          >
-            <AlignCenter className="h-4 w-4" />
-          </Button>
-          <Button
-            variant={column.cellAlignment === 'right' ? 'default' : 'outline'}
-            size="icon"
-            onClick={() => onChange('cellAlignment', 'right')}
-            title="Align Right"
-          >
-            <AlignRight className="h-4 w-4" />
-          </Button>
-          <Button
-            variant={column.cellAlignment === 'justify' ? 'default' : 'outline'}
-            size="icon"
-            onClick={() => onChange('cellAlignment', 'justify')}
-            title="Justify"
-          >
-            <AlignJustify className="h-4 w-4" />
-          </Button>
+            <SelectTrigger>
+              <SelectValue placeholder="Select alignment" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="left">Left</SelectItem>
+              <SelectItem value="center">Center</SelectItem>
+              <SelectItem value="right">Right</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
       
@@ -167,38 +150,37 @@ export function CellSettings({
           </div>
         </div>
         
-        <div className="grid gap-4 md:grid-cols-2">
-          <div>
-            <Label htmlFor="cellBackgroundColor">Background Color</Label>
-            <div className="flex mt-2 gap-2">
-              <div 
-                className="h-10 w-10 rounded-md border"
-                style={{ backgroundColor: column.cellBackgroundColor || '#ffffff' }}
-              />
-              <Input
-                id="cellBackgroundColor"
-                type="color"
-                value={column.cellBackgroundColor || '#ffffff'}
-                onChange={(e) => onChange('cellBackgroundColor', e.target.value)}
-                className="w-full h-10"
-              />
-            </div>
+        <div className="space-y-2">
+          <Label>Background Color</Label>
+          <div className="flex gap-2">
+            <Input
+              type="color"
+              value={column.cellBackgroundColor || '#ffffff'}
+              onChange={(e) => onChange('cellBackgroundColor', e.target.value)}
+              className="w-12 h-8 p-1"
+            />
+            <Input
+              value={column.cellBackgroundColor || '#ffffff'}
+              onChange={(e) => onChange('cellBackgroundColor', e.target.value)}
+              className="flex-1"
+            />
           </div>
-          <div>
-            <Label htmlFor="cellTextColor">Text Color</Label>
-            <div className="flex mt-2 gap-2">
-              <div 
-                className="h-10 w-10 rounded-md border"
-                style={{ backgroundColor: column.cellTextColor || '#000000' }}
-              />
-              <Input
-                id="cellTextColor"
-                type="color"
-                value={column.cellTextColor || '#000000'}
-                onChange={(e) => onChange('cellTextColor', e.target.value)}
-                className="w-full h-10"
-              />
-            </div>
+        </div>
+        
+        <div className="space-y-2">
+          <Label>Text Color</Label>
+          <div className="flex gap-2">
+            <Input
+              type="color"
+              value={column.cellTextColor || '#000000'}
+              onChange={(e) => onChange('cellTextColor', e.target.value)}
+              className="w-12 h-8 p-1"
+            />
+            <Input
+              value={column.cellTextColor || '#000000'}
+              onChange={(e) => onChange('cellTextColor', e.target.value)}
+              className="flex-1"
+            />
           </div>
         </div>
       </div>
@@ -222,7 +204,7 @@ export function CellSettings({
               
               // Apply all font settings to group
               Object.entries(fontSettings).forEach(([property, value]) => {
-                onApplyToGroup(property, value);
+                onApplyToGroup(property as keyof ExtendedColumnState, value);
               });
             }}
           >
@@ -230,81 +212,68 @@ export function CellSettings({
           </Button>
         </div>
         
-        <div className="grid gap-4 md:grid-cols-2">
-          <div>
-            <Label htmlFor="cellFontFamily">Font Family</Label>
-            <Select
-              value={column.cellFontFamily || 'Inter'}
-              onValueChange={(value) => onChange('cellFontFamily', value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select font family" />
-              </SelectTrigger>
-              <SelectContent>
-                {fontFamilies.map((font) => (
-                  <SelectItem key={font} value={font}>
-                    <span style={{ fontFamily: font }}>{font}</span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label htmlFor="cellFontSize">Font Size ({column.cellFontSize || 14}px)</Label>
-            <Slider
-              id="cellFontSize"
-              value={[column.cellFontSize || 14]}
-              min={8}
-              max={24}
-              step={1}
-              onValueChange={(value) => onChange('cellFontSize', value[0])}
-              className="mt-2"
-            />
-          </div>
+        <div className="space-y-2">
+          <Label>Font Family</Label>
+          <Select
+            value={column.cellFontFamily || 'Inter'}
+            onValueChange={(value) => onChange('cellFontFamily', value)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select font family" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Inter">Inter</SelectItem>
+              <SelectItem value="Arial">Arial</SelectItem>
+              <SelectItem value="Helvetica">Helvetica</SelectItem>
+              <SelectItem value="Times New Roman">Times New Roman</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         
-        <div className="grid gap-4 md:grid-cols-2">
-          <div>
-            <Label htmlFor="cellFontWeight">Font Weight</Label>
-            <Select
-              value={column.cellFontWeight || 'normal'}
-              onValueChange={(value) => onChange('cellFontWeight', value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select font weight" />
-              </SelectTrigger>
-              <SelectContent>
-                {fontWeights.map((weight) => (
-                  <SelectItem key={weight.value} value={weight.value}>
-                    <span style={{ fontWeight: weight.value }}>{weight.label}</span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label htmlFor="cellFontStyle">Font Style</Label>
-            <div className="flex gap-2 mt-2">
-              <Button
-                variant={column.cellFontStyle === 'normal' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => onChange('cellFontStyle', 'normal')}
-                title="Normal"
-              >
-                <Type className="h-4 w-4 mr-2" />
-                Normal
-              </Button>
-              <Button
-                variant={column.cellFontStyle === 'italic' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => onChange('cellFontStyle', 'italic')}
-                title="Italic"
-              >
-                <Italic className="h-4 w-4 mr-2" />
-                Italic
-              </Button>
-            </div>
-          </div>
+        <div className="space-y-2">
+          <Label>Font Size</Label>
+          <Input
+            type="number"
+            value={column.cellFontSize || 14}
+            onChange={(e) => onChange('cellFontSize', parseInt(e.target.value))}
+            min={8}
+            max={32}
+          />
+        </div>
+        
+        <div className="space-y-2">
+          <Label>Font Weight</Label>
+          <Select
+            value={column.cellFontWeight || 'normal'}
+            onValueChange={(value) => onChange('cellFontWeight', value)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select font weight" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="normal">Normal</SelectItem>
+              <SelectItem value="bold">Bold</SelectItem>
+              <SelectItem value="lighter">Lighter</SelectItem>
+              <SelectItem value="bolder">Bolder</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        
+        <div className="space-y-2">
+          <Label>Font Style</Label>
+          <Select
+            value={column.cellFontStyle || 'normal'}
+            onValueChange={(value) => onChange('cellFontStyle', value)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select font style" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="normal">Normal</SelectItem>
+              <SelectItem value="italic">Italic</SelectItem>
+              <SelectItem value="oblique">Oblique</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
       

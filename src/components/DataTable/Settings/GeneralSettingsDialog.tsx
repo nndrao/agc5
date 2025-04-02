@@ -41,8 +41,18 @@ export function GeneralSettingsDialog({
 
   // Update local settings when current settings change
   useEffect(() => {
-    setLocalSettings(currentSettings);
+    if (currentSettings) {
+      setLocalSettings(currentSettings);
+    }
   }, [currentSettings]);
+
+  // Reset hasChanges and update settings when dialog opens
+  useEffect(() => {
+    if (open && currentSettings) {
+      setLocalSettings(currentSettings);
+      setIsDirty(false);
+    }
+  }, [open, currentSettings]);
 
   // Handle setting changes
   const handleSettingChange = (category: string, setting: string, value: any) => {

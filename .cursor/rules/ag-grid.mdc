@@ -1,0 +1,12 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# Your rule content
+[ag-grid-resources.md](mdc:ag-grid-resources.md)
+[agref.txt](mdc:agref.txt)
+[agtheme.md](mdc:agtheme.md)
+- You can @ files here
+- You can use markdown but dont have to

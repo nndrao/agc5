@@ -90,6 +90,37 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
   return <DataTableInner data={data} />;
 }
 
+// Define default column definitions
+const defaultColumnDefs = [
+  { 
+    field: "make",
+    headerName: "Make",
+    filter: true,
+    sortable: true,
+    resizable: true,
+  }, 
+  { 
+    field: "model",
+    headerName: "Model",
+    filter: true,
+    sortable: true,
+    resizable: true,
+  }, 
+  { 
+    field: "price",
+    headerName: "Price",
+    filter: true,
+    sortable: true,
+    resizable: true,
+    valueFormatter: (params: any) => {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+      }).format(params.value);
+    },
+  }
+];
+
 function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
   // Access store
   const { 
@@ -116,6 +147,9 @@ function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
   const gridRef = useRef<AgGridReact>(null);
   const [gridReady, setGridReady] = useState(false);
   
+  // Add state for column definitions
+  const [currentColumnDefs, setCurrentColumnDefs] = useState(defaultColumnDefs);
+  
   // Access the profile context to get profile data
   const { 
     profiles, 
@@ -130,18 +164,24 @@ function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
   useEffect(() => {
     if (isColumnSettingsOpen) {
       console.log('Column settings dialog opened - disabling auto column updates');
-      setApplyingColumnChanges(true);
+      console.log('Current column definitions (before dialog):', currentColumnDefs);
+      setApplyingColumnChanges(false);
     } else {
       // When dialog closes, wait for any pending column changes to complete
       console.log('Column settings dialog closed - waiting for changes to complete');
+      console.log('Current column definitions (after dialog):', currentColumnDefs);
       
       // Use a shorter delay since we're already waiting in the dialog
       setTimeout(() => {
         console.log('Re-enabling auto column updates after changes complete');
-        setApplyingColumnChanges(false);
-      }, 100); // Reduced from 1000ms to 100ms
+        if (gridRef.current?.api) {
+          const gridColumns = gridRef.current.api.getColumnDefs();
+          console.log('Grid column definitions:', gridColumns);
+        }
+        //setApplyingColumnChanges(true);
+      }, 2000); // 2 seconds wait to allow state updates to complete
     }
-  }, [isColumnSettingsOpen, setApplyingColumnChanges]);
+  }, [isColumnSettingsOpen, setApplyingColumnChanges, currentColumnDefs]);
 
   // Initialize grid settings from the selected profile
   useEffect(() => {
@@ -161,7 +201,7 @@ function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
               // Update the gridSettings state with the profile settings
               if (profile.settings) {
                 console.log('Updating gridSettings state from loaded profile');
-                setSettings(profile.settings);
+                //setSettings(profile.settings);
               }
             } else {
               console.error('Profile not found or could not be loaded');
@@ -187,6 +227,15 @@ function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
     }
   }, [profiles, selectedProfileId, gridReady, loadProfileById]);
   
+  // Helper function to validate rowSelection type
+  const validateRowSelectionType = (rowSelection: any): boolean => {
+    if (!rowSelection) return false;
+    if (typeof rowSelection !== 'object') return false;
+    if (!rowSelection.type) return false;  // Ensure type exists
+    if (rowSelection.type !== 'singleRow' && rowSelection.type !== 'multiRow') return false;
+    return true;
+  };
+
   // Ensure rowSelection is properly initialized
   useEffect(() => {
     // Check if rowSelection is valid
@@ -254,6 +303,18 @@ function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
 
   // Ensure rowSelection is always a valid object
   const getValidRowSelection = (rowSelection: any) => {
+    // Validate rowSelection first
+    if (!validateRowSelectionType(rowSelection)) {
+      // Return default valid rowSelection object
+      return {
+        type: 'multiRow',
+        enableClickSelection: !gridSettings.suppressRowClickSelection,
+        enableSelectionWithoutKeys: !!gridSettings.rowMultiSelectWithClick,
+        groupSelects: 'descendants',
+        copySelectedRows: !gridSettings.suppressCopyRowsToClipboard
+      };
+    }
+    
     // Always return a properly formatted object with required type property
     return {
       type: (rowSelection?.type === 'singleRow' ? 'singleRow' : 'multiRow') as ('singleRow' | 'multiRow'),
@@ -373,36 +434,6 @@ function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
     return rowData;
   })();
 
-  const columnDefs = [
-    { 
-      field: "make",
-      headerName: "Make",
-      filter: true,
-      sortable: true,
-      resizable: true,
-    }, 
-    { 
-      field: "model",
-      headerName: "Model",
-      filter: true,
-      sortable: true,
-      resizable: true,
-    }, 
-    { 
-      field: "price",
-      headerName: "Price",
-      filter: true,
-      sortable: true,
-      resizable: true,
-      valueFormatter: (params: any) => {
-        return new Intl.NumberFormat('en-US', {
-          style: 'currency',
-          currency: 'USD',
-        }).format(params.value);
-      },
-    }
-  ];
-
   // Create enhanced defaultColDef based on settings
   const defaultColDef = {
     flex: gridSettings.defaultColFlex || 1,
@@ -482,6 +513,53 @@ function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
             if (profile.settings) {
               console.log('Updating gridSettings state from profile loaded in onGridReady');
               setSettings(profile.settings);
+              
+              // Update column definitions if available
+              if (gridRef.current?.api) {
+                const columnDefs = gridRef.current.api.getColumnDefs();
+                if (columnDefs) {
+                  console.log('Updating column definitions from initial profile load');
+                  setCurrentColumnDefs(columnDefs as any[]);
+                }
+              }
+              
+              // Add retry mechanism to verify settings are applied
+              setTimeout(() => {
+                // Check if profile settings are already applied - if not, try again
+                if (gridRef.current?.api) {
+                  const currentDomLayout = gridRef.current.api.getGridOption('domLayout');
+                  const selectedProfile = profiles.find(p => p.id === selectedProfileId);
+                  
+                  if (selectedProfile?.settings && 
+                      selectedProfile.settings.domLayout !== currentDomLayout) {
+                    
+                    console.log('Settings not yet applied correctly, retrying profile load');
+                    // Try loading again with a small delay
+                    (async () => {
+                      try {
+                        const profile = await loadProfileById(selectedProfileId, gridRef.current?.api);
+                        if (profile?.settings) {
+                          setSettings(profile.settings);
+                          
+                          // Update column definitions if available
+                          if (gridRef.current?.api) {
+                            const columnDefs = gridRef.current.api.getColumnDefs();
+                            if (columnDefs) {
+                              console.log('Updating column definitions from profile');
+                              setCurrentColumnDefs(columnDefs as any[]);
+                            }
+                          }
+                        }
+                      } catch (err) {
+                        const errorMessage = err instanceof Error ? err.message : String(err);
+                        console.error('Error in retry loading profile:', errorMessage);
+                      }
+                    })();
+                  } else {
+                    console.log('Settings verified to be applied correctly');
+                  }
+                }
+              }, 100);
             }
           } else {
             console.error('Profile not found or could not be loaded from onGridReady');
@@ -845,6 +923,38 @@ function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
     }
   };
 
+  // Handler for applying column settings changes
+  const handleColumnSettingsApply = (updatedColumnDefs: any[]) => {
+    console.log('Received updated column definitions from column settings dialog');
+    console.log('Number of columns:', updatedColumnDefs.length);
+    
+    // Make sure we have valid column definitions
+    if (!updatedColumnDefs || !Array.isArray(updatedColumnDefs) || updatedColumnDefs.length === 0) {
+      console.error('Invalid column definitions received:', updatedColumnDefs);
+      toast.error('Error updating column settings: Invalid column definitions');
+      return;
+    }
+    
+    // Debug the columns we're about to set
+    updatedColumnDefs.forEach((col, index) => {
+      console.log(`Column ${index}:`, col.field || col.colId, 'headerName:', col.headerName);
+    });
+    
+    // Update the column definitions state
+    setCurrentColumnDefs(updatedColumnDefs);
+    console.log('Column definitions state updated');
+    
+    // If we have a profile selected, also save these changes to the profile
+    if (selectedProfileId && gridRef.current?.api) {
+      console.log('Saving column changes to profile:', selectedProfileId);
+      // Get the current column state from the grid
+      const currentColumnState = gridRef.current.api.getColumnState();
+      
+      // Save the settings to the profile
+      saveSettingsToProfile(gridSettings, currentColumnState);
+    }
+  };
+  
   // Helper function to save settings to the current profile
   const saveSettingsToProfile = (settings: any, columnState: any[]) => {
     if (!gridRef.current || !gridRef.current.api) {
@@ -1013,15 +1123,6 @@ function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
     } as any; // Cast the entire result to avoid TypeScript type issues
     
     return gridOptions;
-  };
-
-  // Helper function to validate rowSelection type
-  const validateRowSelectionType = (rowSelection: any): boolean => {
-    if (!rowSelection) return false;
-    if (typeof rowSelection !== 'object') return false;
-    if (!rowSelection.type) return false;  // Ensure type exists
-    if (rowSelection.type !== 'singleRow' && rowSelection.type !== 'multiRow') return false;
-    return true;
   };
 
   // Debug helper to log column width changes
@@ -1310,7 +1411,7 @@ function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
       <AgGridReact
         ref={gridRef}
         theme={gridTheme}
-        columnDefs={columnDefs}
+        columnDefs={currentColumnDefs}
         rowData={rowData}
         defaultColDef={defaultColDef}
         sideBar={true}
@@ -1377,6 +1478,7 @@ function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
       open={isColumnSettingsOpen}
       onOpenChange={setColumnSettingsOpen}
       gridApi={gridRef.current?.api}
+      onApplySettings={handleColumnSettingsApply}
     />
   </div>
 );

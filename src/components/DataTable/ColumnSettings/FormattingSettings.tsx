@@ -19,11 +19,12 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
+import { ExtendedColumnState } from './types';
 
 interface FormattingSettingsProps {
-  column: any;
-  onChange: (property: string, value: any) => void;
-  onApplyToGroup: (property: string, value: any) => void;
+  column: ExtendedColumnState;
+  onChange: (property: keyof ExtendedColumnState, value: unknown) => void;
+  onApplyToGroup: (property: keyof ExtendedColumnState, value: unknown) => void;
 }
 
 // Sample values for previewing formats
@@ -219,150 +220,108 @@ export function FormattingSettings({
   };
   
   return (
-    <div className="space-y-6">
-      {/* Formatter preview */}
+    <div className="space-y-4">
       <div className="space-y-2">
-        <h3 className="text-lg font-medium">Format Preview</h3>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Current Format</CardTitle>
-            <CardDescription>
-              {formatter === 'none' ? 'No formatting applied' : `Using ${formatter} formatter with pattern: ${pattern}`}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-medium">{formattedValue}</div>
-          </CardContent>
-        </Card>
+        <Label>Number Format</Label>
+        <Select
+          value={column.numberFormat || 'none'}
+          onValueChange={(value) => {
+            onChange('numberFormat', value);
+            // If none is selected, make sure we don't have a valueFormatter
+            if (value === 'none') {
+              onChange('valueFormatter', null);
+            }
+          }}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select number format" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">None</SelectItem>
+            <SelectItem value="currency">Currency</SelectItem>
+            <SelectItem value="percentage">Percentage</SelectItem>
+            <SelectItem value="decimal">Decimal</SelectItem>
+            <SelectItem value="integer">Integer</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
-      
-      <Separator />
-      
-      {/* Formatter selection */}
-      <div className="space-y-4">
-        <div className="flex justify-between items-center">
-          <h3 className="text-lg font-medium">Format Type</h3>
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => {
-              onApplyToGroup('valueFormatter', formatter);
-              onApplyToGroup('valueFormatterPattern', pattern);
-            }}
-          >
-            Apply to Group
-          </Button>
-        </div>
-        
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          {formatters.map((fmt) => (
-            <Button
-              key={fmt.value}
-              variant={formatter === fmt.value ? 'default' : 'outline'}
-              className="flex-col h-auto py-4 px-2"
-              onClick={() => handleFormatterChange(fmt.value)}
-            >
-              <fmt.icon className="h-6 w-6 mb-2" />
-              <span>{fmt.label}</span>
-            </Button>
-          ))}
-        </div>
+
+      <div className="space-y-2">
+        <Label>Decimal Places</Label>
+        <Input
+          type="number"
+          value={column.decimalPlaces || 2}
+          onChange={(e) => onChange('decimalPlaces', parseInt(e.target.value))}
+          min={0}
+          max={10}
+        />
       </div>
-      
-      {/* Format options based on formatter type */}
-      {formatter !== 'none' && formatter !== 'custom' && (
-        <>
-          <Separator />
-          
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium">Format Options</h3>
-            
-            <Select
-              value={pattern}
-              onValueChange={(value) => onChange('valueFormatterPattern', value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select format" />
-              </SelectTrigger>
-              <SelectContent>
-                {getFormatterOptions().map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </>
-      )}
-      
-      {/* Custom formatter */}
-      {formatter === 'custom' && (
-        <>
-          <Separator />
-          
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium">Custom Format</h3>
-            
-            <div className="grid gap-4">
-              <div>
-                <Label htmlFor="customFormat">Format Pattern</Label>
-                <Input
-                  id="customFormat"
-                  value={pattern}
-                  onChange={(e) => onChange('valueFormatterPattern', e.target.value)}
-                  placeholder="Enter custom format pattern"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Use {'{value}'} to reference the cell value. Example: ${'{value}'}
-                </p>
-              </div>
-              
-              <div>
-                <Label>Custom Format Function</Label>
-                <Textarea
-                  placeholder={`// Example: Format as currency with 2 decimal places
-function(params) {
-  return '$' + params.value.toFixed(2);
-}`}
-                  className="font-mono text-xs h-40"
-                  disabled
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Custom formatter functions will be enabled in a future update
-                </p>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-      
-      <Separator />
-      
-      {/* Null/missing value handling */}
-      <div className="space-y-4">
-        <h3 className="text-lg font-medium">Null Value Handling</h3>
-        
-        <div className="grid gap-4 md:grid-cols-2">
-          <div>
-            <Label htmlFor="nullValue">Display for null values</Label>
-            <Input
-              id="nullValue"
-              value={column.nullValueDisplay || ''}
-              onChange={(e) => onChange('nullValueDisplay', e.target.value)}
-              placeholder="E.g. N/A, -, (empty)"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <Switch
-              id="blankIfZero"
-              checked={column.blankIfZero || false}
-              onCheckedChange={(checked) => onChange('blankIfZero', checked)}
-            />
-            <Label htmlFor="blankIfZero">Show blank if value is zero</Label>
-          </div>
-        </div>
+
+      <div className="space-y-2">
+        <Label>Currency Symbol</Label>
+        <Input
+          value={column.currencySymbol || '$'}
+          onChange={(e) => onChange('currencySymbol', e.target.value)}
+          placeholder="Enter currency symbol"
+        />
       </div>
+
+      <div className="space-y-2">
+        <Label>Date Format</Label>
+        <Select
+          value={column.dateFormat || 'none'}
+          onValueChange={(value) => {
+            onChange('dateFormat', value);
+            // If none is selected, clear the valueFormatter
+            if (value === 'none') {
+              onChange('valueFormatter', null);
+            }
+          }}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select date format" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">None</SelectItem>
+            <SelectItem value="short">Short (MM/DD/YYYY)</SelectItem>
+            <SelectItem value="medium">Medium (MMM DD, YYYY)</SelectItem>
+            <SelectItem value="long">Long (MMMM DD, YYYY)</SelectItem>
+            <SelectItem value="iso">ISO (YYYY-MM-DD)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Text Transform</Label>
+        <Select
+          value={column.textTransform || 'none'}
+          onValueChange={(value) => {
+            onChange('textTransform', value);
+            // If none is selected, clear the valueFormatter
+            if (value === 'none') {
+              onChange('valueFormatter', null);
+            }
+          }}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select text transform" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">None</SelectItem>
+            <SelectItem value="uppercase">Uppercase</SelectItem>
+            <SelectItem value="lowercase">Lowercase</SelectItem>
+            <SelectItem value="capitalize">Capitalize</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <Button
+        variant="outline"
+        className="w-full"
+        onClick={() => onApplyToGroup('numberFormat', column.numberFormat)}
+      >
+        Apply to Group
+      </Button>
     </div>
   );
 } 

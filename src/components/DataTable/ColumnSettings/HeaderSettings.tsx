@@ -19,11 +19,12 @@ import { Switch } from '@/components/ui/switch';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { ExtendedColumnState } from './types';
 
 interface HeaderSettingsProps {
-  column: any;
-  onChange: (property: string, value: any) => void;
-  onApplyToGroup: (property: string, value: any) => void;
+  column: ExtendedColumnState;
+  onChange: (property: keyof ExtendedColumnState, value: unknown) => void;
+  onApplyToGroup: (property: keyof ExtendedColumnState, value: unknown) => void;
 }
 
 // Font families list
@@ -76,261 +77,138 @@ export function HeaderSettings({
   };
   
   return (
-    <div className="space-y-6">
-      {/* Header title and preview */}
+    <div className="space-y-4">
       <div className="space-y-2">
-        <h3 className="text-lg font-medium">Header Text</h3>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div>
-            <Label htmlFor="headerName">Header Text</Label>
-            <Input
-              id="headerName"
-              value={column.headerName || ''}
-              onChange={(e) => onChange('headerName', e.target.value)}
-              placeholder="Enter header text"
-            />
-          </div>
-          <div>
-            <Label>Preview</Label>
-            <div style={headerPreviewStyle as React.CSSProperties} className="mt-2">
-              {column.headerName || column.field || column.colId}
-            </div>
-          </div>
-        </div>
+        <Label>Header Text</Label>
+        <Input
+          value={column.headerName || ''}
+          onChange={(e) => onChange('headerName', e.target.value)}
+          placeholder="Enter header text"
+        />
       </div>
-      
-      <Separator />
-      
-      {/* Alignment options */}
+
       <div className="space-y-2">
-        <div className="flex justify-between items-center">
-          <h3 className="text-lg font-medium">Alignment</h3>
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => onApplyToGroup('headerAlignment', column.headerAlignment)}
-          >
-            Apply to Group
-          </Button>
-        </div>
-        
+        <Label>Alignment</Label>
+        <Select
+          value={column.headerAlignment || 'left'}
+          onValueChange={(value) => onChange('headerAlignment', value)}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select alignment" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="left">Left</SelectItem>
+            <SelectItem value="center">Center</SelectItem>
+            <SelectItem value="right">Right</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Background Color</Label>
         <div className="flex gap-2">
-          <Button
-            variant={column.headerAlignment === 'left' ? 'default' : 'outline'}
-            size="icon"
-            onClick={() => onChange('headerAlignment', 'left')}
-            title="Align Left"
-          >
-            <AlignLeft className="h-4 w-4" />
-          </Button>
-          <Button
-            variant={column.headerAlignment === 'center' ? 'default' : 'outline'}
-            size="icon"
-            onClick={() => onChange('headerAlignment', 'center')}
-            title="Align Center"
-          >
-            <AlignCenter className="h-4 w-4" />
-          </Button>
-          <Button
-            variant={column.headerAlignment === 'right' ? 'default' : 'outline'}
-            size="icon"
-            onClick={() => onChange('headerAlignment', 'right')}
-            title="Align Right"
-          >
-            <AlignRight className="h-4 w-4" />
-          </Button>
+          <Input
+            type="color"
+            value={column.headerBackgroundColor || '#f4f4f4'}
+            onChange={(e) => onChange('headerBackgroundColor', e.target.value)}
+            className="w-12 h-8 p-1"
+          />
+          <Input
+            value={column.headerBackgroundColor || '#f4f4f4'}
+            onChange={(e) => onChange('headerBackgroundColor', e.target.value)}
+            className="flex-1"
+          />
         </div>
       </div>
-      
-      <Separator />
-      
-      {/* Colors */}
-      <div className="space-y-4">
-        <div className="flex justify-between items-center">
-          <h3 className="text-lg font-medium">Colors</h3>
-          <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => onApplyToGroup('headerBackgroundColor', column.headerBackgroundColor)}
-            >
-              Apply BG to Group
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => onApplyToGroup('headerTextColor', column.headerTextColor)}
-            >
-              Apply Text to Group
-            </Button>
-          </div>
-        </div>
-        
-        <div className="grid gap-4 md:grid-cols-2">
-          <div>
-            <Label htmlFor="headerBackgroundColor">Background Color</Label>
-            <div className="flex mt-2 gap-2">
-              <div 
-                className="h-10 w-10 rounded-md border"
-                style={{ backgroundColor: column.headerBackgroundColor || '#f4f4f4' }}
-              />
-              <Input
-                id="headerBackgroundColor"
-                type="color"
-                value={column.headerBackgroundColor || '#f4f4f4'}
-                onChange={(e) => onChange('headerBackgroundColor', e.target.value)}
-                className="w-full h-10"
-              />
-            </div>
-          </div>
-          <div>
-            <Label htmlFor="headerTextColor">Text Color</Label>
-            <div className="flex mt-2 gap-2">
-              <div 
-                className="h-10 w-10 rounded-md border"
-                style={{ backgroundColor: column.headerTextColor || '#000000' }}
-              />
-              <Input
-                id="headerTextColor"
-                type="color"
-                value={column.headerTextColor || '#000000'}
-                onChange={(e) => onChange('headerTextColor', e.target.value)}
-                className="w-full h-10"
-              />
-            </div>
-          </div>
+
+      <div className="space-y-2">
+        <Label>Text Color</Label>
+        <div className="flex gap-2">
+          <Input
+            type="color"
+            value={column.headerTextColor || '#000000'}
+            onChange={(e) => onChange('headerTextColor', e.target.value)}
+            className="w-12 h-8 p-1"
+          />
+          <Input
+            value={column.headerTextColor || '#000000'}
+            onChange={(e) => onChange('headerTextColor', e.target.value)}
+            className="flex-1"
+          />
         </div>
       </div>
-      
-      <Separator />
-      
-      {/* Font settings */}
-      <div className="space-y-4">
-        <div className="flex justify-between items-center">
-          <h3 className="text-lg font-medium">Font Settings</h3>
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => {
-              const fontSettings = {
-                headerFontFamily: column.headerFontFamily,
-                headerFontSize: column.headerFontSize,
-                headerFontWeight: column.headerFontWeight,
-                headerFontStyle: column.headerFontStyle,
-              };
-              
-              // Apply all font settings to group
-              Object.entries(fontSettings).forEach(([property, value]) => {
-                onApplyToGroup(property, value);
-              });
-            }}
-          >
-            Apply All to Group
-          </Button>
-        </div>
-        
-        <div className="grid gap-4 md:grid-cols-2">
-          <div>
-            <Label htmlFor="headerFontFamily">Font Family</Label>
-            <Select
-              value={column.headerFontFamily || 'Inter'}
-              onValueChange={(value) => onChange('headerFontFamily', value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select font family" />
-              </SelectTrigger>
-              <SelectContent>
-                {fontFamilies.map((font) => (
-                  <SelectItem key={font} value={font}>
-                    <span style={{ fontFamily: font }}>{font}</span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label htmlFor="headerFontSize">Font Size ({column.headerFontSize || 14}px)</Label>
-            <Slider
-              id="headerFontSize"
-              value={[column.headerFontSize || 14]}
-              min={8}
-              max={24}
-              step={1}
-              onValueChange={(value) => onChange('headerFontSize', value[0])}
-              className="mt-2"
-            />
-          </div>
-        </div>
-        
-        <div className="grid gap-4 md:grid-cols-2">
-          <div>
-            <Label htmlFor="headerFontWeight">Font Weight</Label>
-            <Select
-              value={column.headerFontWeight || 'normal'}
-              onValueChange={(value) => onChange('headerFontWeight', value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select font weight" />
-              </SelectTrigger>
-              <SelectContent>
-                {fontWeights.map((weight) => (
-                  <SelectItem key={weight.value} value={weight.value}>
-                    <span style={{ fontWeight: weight.value }}>{weight.label}</span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label htmlFor="headerFontStyle">Font Style</Label>
-            <div className="flex gap-2 mt-2">
-              <Button
-                variant={column.headerFontStyle === 'normal' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => onChange('headerFontStyle', 'normal')}
-                title="Normal"
-              >
-                <Type className="h-4 w-4 mr-2" />
-                Normal
-              </Button>
-              <Button
-                variant={column.headerFontStyle === 'italic' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => onChange('headerFontStyle', 'italic')}
-                title="Italic"
-              >
-                <Italic className="h-4 w-4 mr-2" />
-                Italic
-              </Button>
-            </div>
-          </div>
-        </div>
+
+      <div className="space-y-2">
+        <Label>Font Family</Label>
+        <Select
+          value={column.headerFontFamily || 'Inter'}
+          onValueChange={(value) => onChange('headerFontFamily', value)}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select font family" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="Inter">Inter</SelectItem>
+            <SelectItem value="Arial">Arial</SelectItem>
+            <SelectItem value="Helvetica">Helvetica</SelectItem>
+            <SelectItem value="Times New Roman">Times New Roman</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
-      
-      <Separator />
-      
-      {/* Additional settings */}
-      <div className="space-y-4">
-        <h3 className="text-lg font-medium">Additional Settings</h3>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="flex items-center gap-2">
-            <Switch
-              id="sortable"
-              checked={column.sortable !== false}
-              onCheckedChange={(checked) => onChange('sortable', checked)}
-            />
-            <Label htmlFor="sortable">Sortable</Label>
-          </div>
-          <div className="flex items-center gap-2">
-            <Switch
-              id="resizable"
-              checked={column.resizable !== false}
-              onCheckedChange={(checked) => onChange('resizable', checked)}
-            />
-            <Label htmlFor="resizable">Resizable</Label>
-          </div>
-        </div>
+
+      <div className="space-y-2">
+        <Label>Font Size</Label>
+        <Input
+          type="number"
+          value={column.headerFontSize || 14}
+          onChange={(e) => onChange('headerFontSize', parseInt(e.target.value))}
+          min={8}
+          max={32}
+        />
       </div>
+
+      <div className="space-y-2">
+        <Label>Font Weight</Label>
+        <Select
+          value={column.headerFontWeight || 'normal'}
+          onValueChange={(value) => onChange('headerFontWeight', value)}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select font weight" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="normal">Normal</SelectItem>
+            <SelectItem value="bold">Bold</SelectItem>
+            <SelectItem value="lighter">Lighter</SelectItem>
+            <SelectItem value="bolder">Bolder</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Font Style</Label>
+        <Select
+          value={column.headerFontStyle || 'normal'}
+          onValueChange={(value) => onChange('headerFontStyle', value)}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select font style" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="normal">Normal</SelectItem>
+            <SelectItem value="italic">Italic</SelectItem>
+            <SelectItem value="oblique">Oblique</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <Button
+        variant="outline"
+        className="w-full"
+        onClick={() => onApplyToGroup('headerName', column.headerName)}
+      >
+        Apply to Group
+      </Button>
     </div>
   );
 } 

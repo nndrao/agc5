@@ -25,11 +25,12 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
+import { ExtendedColumnState } from './types';
 
 interface ComponentSettingsProps {
-  column: any;
-  onChange: (property: string, value: any) => void;
-  onApplyToGroup: (property: string, value: any) => void;
+  column: ExtendedColumnState;
+  onChange: (property: keyof ExtendedColumnState, value: unknown) => void;
+  onApplyToGroup: (property: keyof ExtendedColumnState, value: unknown) => void;
 }
 
 // Cell renderer options
@@ -87,6 +88,26 @@ export function ComponentSettings({
               </Button>
             </div>
             
+            <div className="space-y-2">
+              <Label>Cell Renderer</Label>
+              <Select
+                value={column.cellRenderer || 'none'}
+                onValueChange={(value) => onChange('cellRenderer', value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select cell renderer" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  <SelectItem value="button">Button</SelectItem>
+                  <SelectItem value="checkbox">Checkbox</SelectItem>
+                  <SelectItem value="progress">Progress Bar</SelectItem>
+                  <SelectItem value="rating">Rating</SelectItem>
+                  <SelectItem value="status">Status Badge</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
             <div className="grid gap-4 md:grid-cols-2">
               {cellRenderers.map((renderer) => (
                 <div
@@ -142,25 +163,25 @@ export function ComponentSettings({
               </div>
             </div>
             
-            <Select
-              value={column.cellEditor || 'agTextCellEditor'}
-              onValueChange={(value) => onChange('cellEditor', value)}
-              disabled={!column.editable}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select editor type" />
-              </SelectTrigger>
-              <SelectContent>
-                {cellEditors.map((editor) => (
-                  <SelectItem key={editor.value} value={editor.value}>
-                    <div className="flex flex-col">
-                      <span>{editor.label}</span>
-                      <span className="text-xs text-muted-foreground">{editor.description}</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="space-y-2">
+              <Label>Cell Editor</Label>
+              <Select
+                value={column.cellEditor || 'none'}
+                onValueChange={(value) => onChange('cellEditor', value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select cell editor" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  <SelectItem value="text">Text Input</SelectItem>
+                  <SelectItem value="number">Number Input</SelectItem>
+                  <SelectItem value="date">Date Picker</SelectItem>
+                  <SelectItem value="select">Select Dropdown</SelectItem>
+                  <SelectItem value="checkbox">Checkbox</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             
             {/* Editor-specific settings */}
             {column.cellEditor === 'agSelectCellEditor' && (

@@ -1,51 +1,74 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
+import { GridApi, ColumnState, FilterModel } from 'ag-grid-community';
+import { ExtendedColumnState } from '../ColumnSettings/types';
+
+interface GridSettings {
+  [key: string]: unknown;
+}
+
+interface SortModel {
+  colId: string;
+  sort: 'asc' | 'desc' | null;
+}
 
 interface GridState {
-  // Column state
-  columnState: any[];
-  setColumnState: (state: any[]) => void;
+  // Grid API
+  gridApi: GridApi | null;
+  setGridApi: (api: GridApi) => void;
+  
+  // Column State
+  columnState: ExtendedColumnState[];
+  setColumnState: (state: ExtendedColumnState[]) => void;
+  isApplyingColumnChanges: boolean;
+  setApplyingColumnChanges: (isApplying: boolean) => void;
   
   // Grid settings
-  settings: any;
-  setSettings: (settings: any) => void;
+  settings: GridSettings;
+  setSettings: (settings: GridSettings) => void;
   
   // Filter and sort state
-  filterModel: any;
-  setFilterModel: (model: any) => void;
-  sortModel: any;
-  setSortModel: (model: any) => void;
+  filterModel: FilterModel;
+  setFilterModel: (model: FilterModel) => void;
+  sortModel: SortModel[];
+  setSortModel: (model: SortModel[]) => void;
   
   // Column settings dialog state
   isColumnSettingsOpen: boolean;
   setColumnSettingsOpen: (open: boolean) => void;
-  
-  // Flags for state updates
-  isApplyingColumnChanges: boolean;
-  setApplyingColumnChanges: (isApplying: boolean) => void;
+  selectedColumnId: string | null;
+  setSelectedColumnId: (id: string | null) => void;
 }
 
 export const useGridStore = create<GridState>()(
   devtools(
     (set) => ({
-      // Initial state
-      columnState: [],
-      settings: {},
-      filterModel: {},
-      sortModel: [],
-      isColumnSettingsOpen: false,
-      isApplyingColumnChanges: false,
+      // Grid API
+      gridApi: null,
+      setGridApi: (api) => set({ gridApi: api }),
       
-      // Actions
+      // Column State
+      columnState: [],
       setColumnState: (state) => set({ columnState: state }),
-      setSettings: (settings) => set({ settings }),
-      setFilterModel: (model) => set({ filterModel: model }),
-      setSortModel: (model) => set({ sortModel: model }),
-      setColumnSettingsOpen: (open) => set({ isColumnSettingsOpen: open }),
+      isApplyingColumnChanges: false,
       setApplyingColumnChanges: (isApplying) => set({ isApplyingColumnChanges: isApplying }),
+      
+      // Grid settings
+      settings: {},
+      setSettings: (settings) => set({ settings }),
+      
+      // Filter and sort state
+      filterModel: {},
+      setFilterModel: (model) => set({ filterModel: model }),
+      sortModel: [],
+      setSortModel: (model) => set({ sortModel: model }),
+      
+      // Column settings dialog state
+      isColumnSettingsOpen: false,
+      setColumnSettingsOpen: (open) => set({ isColumnSettingsOpen: open }),
+      selectedColumnId: null,
+      setSelectedColumnId: (id) => set({ selectedColumnId: id }),
     }),
-    {
-      name: 'grid-store',
-    }
+    { name: 'grid-store' }
   )
 ); 
