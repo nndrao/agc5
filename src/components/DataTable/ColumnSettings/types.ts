@@ -1,5 +1,20 @@
 import { ColumnState, ColDef } from 'ag-grid-community';
 
+// Border style properties
+export interface BorderStyle {
+  width?: string;
+  style?: 'none' | 'solid' | 'dashed' | 'dotted' | 'double';
+  color?: string;
+}
+
+// Border sides properties
+export interface BorderSides {
+  top?: BorderStyle;
+  right?: BorderStyle;
+  bottom?: BorderStyle;
+  left?: BorderStyle;
+}
+
 // Cell style properties
 export interface CellStyleProperties {
   backgroundColor?: string;
@@ -12,6 +27,10 @@ export interface CellStyleProperties {
   padding?: string;
   borderRadius?: string;
   border?: string;
+  borderTop?: string;
+  borderRight?: string;
+  borderBottom?: string;
+  borderLeft?: string;
 }
 
 // Extended column state that includes additional styling and formatting properties
@@ -25,6 +44,10 @@ export interface ExtendedColumnState extends ColumnState {
   headerFontSize?: number;
   headerFontWeight?: string;
   headerFontStyle?: string;
+  headerBorderTop?: BorderStyle;
+  headerBorderRight?: BorderStyle;
+  headerBorderBottom?: BorderStyle;
+  headerBorderLeft?: BorderStyle;
 
   // Cell styling
   cellAlignment?: 'left' | 'center' | 'right';
@@ -34,6 +57,10 @@ export interface ExtendedColumnState extends ColumnState {
   cellFontSize?: number;
   cellFontWeight?: string;
   cellFontStyle?: string;
+  cellBorderTop?: BorderStyle;
+  cellBorderRight?: BorderStyle;
+  cellBorderBottom?: BorderStyle;
+  cellBorderLeft?: BorderStyle;
 
   // Formatting
   numberFormat?: 'none' | 'currency' | 'percentage' | 'decimal' | 'integer';
@@ -52,7 +79,7 @@ export interface ExtendedColumnState extends ColumnState {
 
   // Additional properties
   editable?: boolean;
-  filter?: boolean;
+  filter?: boolean | string;
   sortable?: boolean;
   resizable?: boolean;
   pinned?: 'left' | 'right' | null;

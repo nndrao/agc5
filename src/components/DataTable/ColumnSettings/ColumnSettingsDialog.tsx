@@ -4,15 +4,18 @@ import {
   DialogContent, 
   DialogHeader, 
   DialogTitle, 
-  DialogFooter,
-  DialogDescription
+  DialogFooter
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
   Undo2, 
-  Redo2
+  Redo2,
+  Heading1,
+  Table2,
+  Paintbrush,
+  LayoutPanelLeft
 } from 'lucide-react';
 import { useGridStore } from '../store/gridStore';
 import { toast } from 'sonner';
@@ -110,39 +113,77 @@ export function ColumnSettingsDialog({
       
       // Add field from colDef if available (it's available in the GridAPI but not directly in ColumnState)
       if (colDef.field) {
-        (enrichedState as any).field = colDef.field;
+        // Use type assertion to unknown first to avoid type errors
+        const mutableState = enrichedState as unknown as Record<string, unknown>;
+        mutableState.field = colDef.field;
       }
       
-      // Extract and apply header component params
+      // Extract and apply header component params and styles
       const headerComponentParams = colDef.headerComponentParams || {};
+      const headerStyle = typeof colDef.headerStyle === 'function' ? {} : colDef.headerStyle || {};
       
       // Only add explicitly defined properties (to ensure proper fallback to theme defaults)
       if (headerComponentParams.alignment !== undefined) {
         enrichedState.headerAlignment = headerComponentParams.alignment;
+      } else if (headerStyle.textAlign !== undefined) {
+        enrichedState.headerAlignment = headerStyle.textAlign as 'left' | 'center' | 'right';
       }
       
       if (headerComponentParams.backgroundColor !== undefined) {
         enrichedState.headerBackgroundColor = headerComponentParams.backgroundColor;
+      } else if (headerStyle.backgroundColor !== undefined) {
+        enrichedState.headerBackgroundColor = headerStyle.backgroundColor as string;
       }
       
       if (headerComponentParams.textColor !== undefined) {
         enrichedState.headerTextColor = headerComponentParams.textColor;
+      } else if (headerStyle.color !== undefined) {
+        enrichedState.headerTextColor = headerStyle.color as string;
       }
       
       if (headerComponentParams.fontFamily !== undefined) {
         enrichedState.headerFontFamily = headerComponentParams.fontFamily;
+      } else if (headerStyle.fontFamily !== undefined) {
+        enrichedState.headerFontFamily = headerStyle.fontFamily as string;
       }
       
       if (headerComponentParams.fontSize !== undefined) {
         enrichedState.headerFontSize = headerComponentParams.fontSize;
+      } else if (headerStyle.fontSize !== undefined) {
+        enrichedState.headerFontSize = parseInt(headerStyle.fontSize as string);
       }
       
       if (headerComponentParams.fontWeight !== undefined) {
         enrichedState.headerFontWeight = headerComponentParams.fontWeight;
+      } else if (headerStyle.fontWeight !== undefined) {
+        enrichedState.headerFontWeight = headerStyle.fontWeight as string;
       }
       
       if (headerComponentParams.fontStyle !== undefined) {
         enrichedState.headerFontStyle = headerComponentParams.fontStyle;
+      } else if (headerStyle.fontStyle !== undefined) {
+        enrichedState.headerFontStyle = headerStyle.fontStyle as string;
+      }
+      
+      // Extract header border styles
+      if (headerStyle.borderTop !== undefined) {
+        const [width, style, color] = parseBorderString(headerStyle.borderTop as string);
+        enrichedState.headerBorderTop = { width, style, color };
+      }
+      
+      if (headerStyle.borderRight !== undefined) {
+        const [width, style, color] = parseBorderString(headerStyle.borderRight as string);
+        enrichedState.headerBorderRight = { width, style, color };
+      }
+      
+      if (headerStyle.borderBottom !== undefined) {
+        const [width, style, color] = parseBorderString(headerStyle.borderBottom as string);
+        enrichedState.headerBorderBottom = { width, style, color };
+      }
+      
+      if (headerStyle.borderLeft !== undefined) {
+        const [width, style, color] = parseBorderString(headerStyle.borderLeft as string);
+        enrichedState.headerBorderLeft = { width, style, color };
       }
       
       // Extract and apply cell styling properties
@@ -177,6 +218,27 @@ export function ColumnSettingsDialog({
       
       if (cellStyle.fontStyle !== undefined) {
         enrichedState.cellFontStyle = cellStyle.fontStyle;
+      }
+      
+      // Extract cell border styles
+      if (cellStyle.borderTop !== undefined) {
+        const [width, style, color] = parseBorderString(cellStyle.borderTop);
+        enrichedState.cellBorderTop = { width, style, color };
+      }
+      
+      if (cellStyle.borderRight !== undefined) {
+        const [width, style, color] = parseBorderString(cellStyle.borderRight);
+        enrichedState.cellBorderRight = { width, style, color };
+      }
+      
+      if (cellStyle.borderBottom !== undefined) {
+        const [width, style, color] = parseBorderString(cellStyle.borderBottom);
+        enrichedState.cellBorderBottom = { width, style, color };
+      }
+      
+      if (cellStyle.borderLeft !== undefined) {
+        const [width, style, color] = parseBorderString(cellStyle.borderLeft);
+        enrichedState.cellBorderLeft = { width, style, color };
       }
       
       // Handle formatting options
@@ -220,6 +282,19 @@ export function ColumnSettingsDialog({
     });
   };
 
+  // Helper function to parse border string into width, style, and color
+  const parseBorderString = (borderStr: string): [string, 'none' | 'solid' | 'dashed' | 'dotted' | 'double', string] => {
+    if (!borderStr || borderStr === 'none') return ['0', 'none', '#dddddd'];
+    
+    // Simple parsing of border string (width style color)
+    const parts = borderStr.split(' ');
+    const width = parts[0] || '1px';
+    const style = (parts[1] || 'solid') as 'none' | 'solid' | 'dashed' | 'dotted' | 'double';
+    const color = parts[2] || '#dddddd';
+    
+    return [width, style, color];
+  };
+
   const handleColumnSelect = (columnId: string) => {
     setSelectedColumnId(columnId);
   };
@@ -259,72 +334,6 @@ export function ColumnSettingsDialog({
     });
     
     setLocalColumnState(updatedColumns);
-  };
-
-  const handleApplyToGroup = (property: keyof ExtendedColumnState, value: unknown) => {
-    if (!selectedColumnId) return;
-    
-    // Find the currently selected column to get its field prefix
-    const selectedColumn = localColumnState.find(col => col.colId === selectedColumnId);
-    if (!selectedColumn) return;
-    
-    // Get the field from the column (we've extended the type with any, since field isn't in the standard ColumnState)
-    const field = (selectedColumn as any).field;
-    if (!field) {
-      toast.warning('No field property found for grouping');
-      return;
-    }
-    
-    // Extract the group prefix (everything before the last dot)
-    const lastDotIndex = field.lastIndexOf('.');
-    if (lastDotIndex === -1) {
-      // No group prefix found
-      toast.warning('No column group detected');
-      return;
-    }
-    
-    const groupPrefix = field.substring(0, lastDotIndex + 1);
-    
-    // Update all columns in the same group
-    const updatedColumns = localColumnState.map(col => {
-      // Get the field from the column (using any since field isn't in the standard type)
-      const colField = (col as any).field;
-      
-      if (colField && colField.startsWith(groupPrefix)) {
-        // Record the change in history before applying it
-        const previousValue = col[property];
-        
-        if (previousValue !== value) {
-          const newChange: ColumnChange = {
-            type: 'group_update',
-            columnId: col.colId,
-            property: property as string,
-            value,
-            previousValue
-          };
-          
-          // Add the change to history (without tracking individual columns to avoid clutter)
-          if (col.colId === selectedColumnId) {
-            const newHistory = changeHistory.slice(0, changeIndex + 1);
-            newHistory.push(newChange);
-            setChangeHistory(newHistory);
-            setChangeIndex(newHistory.length - 1);
-          }
-          
-          setIsDirty(true);
-          
-          // Return the updated column
-          return {
-            ...col,
-            [property]: value
-          };
-        }
-      }
-      return col;
-    });
-    
-    setLocalColumnState(updatedColumns);
-    toast.success(`Applied ${property} to all columns in group`);
   };
 
   const handleToggleVisibility = (columnId: string) => {
@@ -433,9 +442,30 @@ export function ColumnSettingsDialog({
           hasHeaderStyle = true;
         }
         
+        // Add header border styles
+        if (colState.headerBorderTop && colState.headerBorderTop.style !== 'none') {
+          headerStyle.borderTop = `${colState.headerBorderTop.width || '1px'} ${colState.headerBorderTop.style || 'solid'} ${colState.headerBorderTop.color || '#dddddd'}`;
+          hasHeaderStyle = true;
+        }
+        
+        if (colState.headerBorderRight && colState.headerBorderRight.style !== 'none') {
+          headerStyle.borderRight = `${colState.headerBorderRight.width || '1px'} ${colState.headerBorderRight.style || 'solid'} ${colState.headerBorderRight.color || '#dddddd'}`;
+          hasHeaderStyle = true;
+        }
+        
+        if (colState.headerBorderBottom && colState.headerBorderBottom.style !== 'none') {
+          headerStyle.borderBottom = `${colState.headerBorderBottom.width || '1px'} ${colState.headerBorderBottom.style || 'solid'} ${colState.headerBorderBottom.color || '#dddddd'}`;
+          hasHeaderStyle = true;
+        }
+        
+        if (colState.headerBorderLeft && colState.headerBorderLeft.style !== 'none') {
+          headerStyle.borderLeft = `${colState.headerBorderLeft.width || '1px'} ${colState.headerBorderLeft.style || 'solid'} ${colState.headerBorderLeft.color || '#dddddd'}`;
+          hasHeaderStyle = true;
+        }
+        
         // Only set headerStyle if we have properties to apply
         if (hasHeaderStyle) {
-          updatedColDef.headerStyle = headerStyle;
+          updatedColDef.headerStyle = headerStyle as import('ag-grid-community').HeaderStyle;
         } else {
           // If no header style properties are defined, remove the headerStyle property
           // to ensure proper fallback to theme defaults
@@ -482,9 +512,30 @@ export function ColumnSettingsDialog({
           hasCellStyle = true;
         }
         
+        // Add cell border styles
+        if (colState.cellBorderTop && colState.cellBorderTop.style !== 'none') {
+          cellStyle.borderTop = `${colState.cellBorderTop.width || '1px'} ${colState.cellBorderTop.style || 'solid'} ${colState.cellBorderTop.color || '#dddddd'}`;
+          hasCellStyle = true;
+        }
+        
+        if (colState.cellBorderRight && colState.cellBorderRight.style !== 'none') {
+          cellStyle.borderRight = `${colState.cellBorderRight.width || '1px'} ${colState.cellBorderRight.style || 'solid'} ${colState.cellBorderRight.color || '#dddddd'}`;
+          hasCellStyle = true;
+        }
+        
+        if (colState.cellBorderBottom && colState.cellBorderBottom.style !== 'none') {
+          cellStyle.borderBottom = `${colState.cellBorderBottom.width || '1px'} ${colState.cellBorderBottom.style || 'solid'} ${colState.cellBorderBottom.color || '#dddddd'}`;
+          hasCellStyle = true;
+        }
+        
+        if (colState.cellBorderLeft && colState.cellBorderLeft.style !== 'none') {
+          cellStyle.borderLeft = `${colState.cellBorderLeft.width || '1px'} ${colState.cellBorderLeft.style || 'solid'} ${colState.cellBorderLeft.color || '#dddddd'}`;
+          hasCellStyle = true;
+        }
+        
         // Only set cellStyle if we have properties to apply
         if (hasCellStyle) {
-          updatedColDef.cellStyle = cellStyle;
+          updatedColDef.cellStyle = cellStyle as import('ag-grid-community').CellStyle;
         } else {
           // If no cell style properties are defined, remove the cellStyle property
           // to ensure proper fallback to theme defaults
@@ -541,69 +592,109 @@ export function ColumnSettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl min-h-[80vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle>Column Settings</DialogTitle>
-          <DialogDescription>
-            Customize the appearance and behavior of grid columns
-          </DialogDescription>
+      <DialogContent className="max-w-4xl h-[600px] p-0 flex flex-col overflow-hidden">
+        <DialogHeader className="px-4 pt-4 pb-2 shrink-0 border-b">
+          <div className="flex justify-between items-center">
+            <DialogTitle className="text-lg">Column Settings</DialogTitle>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={handleUndo}
+                disabled={changeIndex < 0}
+                title="Undo"
+              >
+                <Undo2 className="h-4 w-4" />
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={handleRedo}
+                disabled={changeIndex >= changeHistory.length - 1}
+                title="Redo"
+              >
+                <Redo2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
         </DialogHeader>
         
-        <div className="flex flex-1 gap-4 overflow-hidden">
-          {/* Column list */}
-          <div className="w-64 border-r pr-4">
-            <ColumnList 
-              columns={localColumnState}
-              selectedColumnId={selectedColumnId}
-              onColumnSelect={handleColumnSelect}
-              onToggleVisibility={handleToggleVisibility}
-            />
+        <div className="flex flex-1 overflow-hidden">
+          {/* Column list - fixed height */}
+          <div className="w-56 border-r overflow-hidden flex flex-col">
+            <div className="p-3 bg-muted/40 border-b shrink-0">
+              <h3 className="text-xs font-medium uppercase tracking-wider">Columns</h3>
+            </div>
+            <ScrollArea className="flex-1 h-0">
+              <div className="p-2">
+                <ColumnList 
+                  columns={localColumnState}
+                  selectedColumnId={selectedColumnId}
+                  onColumnSelect={handleColumnSelect}
+                  onToggleVisibility={handleToggleVisibility}
+                />
+              </div>
+            </ScrollArea>
           </div>
           
-          {/* Settings tabs */}
-          <div className="flex-1 overflow-hidden">
+          {/* Settings tabs - fixed height with scrollable content */}
+          <div className="flex-1 overflow-hidden flex flex-col">
             {selectedColumn ? (
               <Tabs defaultValue="header" value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
-                <TabsList className="mb-4">
-                  <TabsTrigger value="header">Header</TabsTrigger>
-                  <TabsTrigger value="cell">Cell</TabsTrigger>
-                  <TabsTrigger value="formatting">Formatting</TabsTrigger>
-                  <TabsTrigger value="components">Components</TabsTrigger>
-                </TabsList>
+                <div className="border-b px-4 shrink-0">
+                  <TabsList className="h-10">
+                    <TabsTrigger value="header" className="flex items-center gap-1.5 text-xs px-2">
+                      <Heading1 className="h-3.5 w-3.5" />
+                      <span>Header</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="cell" className="flex items-center gap-1.5 text-xs px-2">
+                      <Table2 className="h-3.5 w-3.5" />
+                      <span>Cell</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="formatting" className="flex items-center gap-1.5 text-xs px-2">
+                      <Paintbrush className="h-3.5 w-3.5" />
+                      <span>Format</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="components" className="flex items-center gap-1.5 text-xs px-2">
+                      <LayoutPanelLeft className="h-3.5 w-3.5" />
+                      <span>Components</span>
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
                 
-                <ScrollArea className="flex-1">
-                  <TabsContent value="header" className="mt-0">
-                    <HeaderSettings 
-                      column={selectedColumn}
-                      onChange={(property, value) => handleColumnChange(selectedColumnId!, property, value)}
-                      onApplyToGroup={handleApplyToGroup}
-                    />
-                  </TabsContent>
-                  
-                  <TabsContent value="cell" className="mt-0">
-                    <CellSettings 
-                      column={selectedColumn}
-                      onChange={(property, value) => handleColumnChange(selectedColumnId!, property, value)}
-                      onApplyToGroup={handleApplyToGroup}
-                    />
-                  </TabsContent>
-                  
-                  <TabsContent value="formatting" className="mt-0">
-                    <FormattingSettings 
-                      column={selectedColumn}
-                      onChange={(property, value) => handleColumnChange(selectedColumnId!, property, value)}
-                      onApplyToGroup={handleApplyToGroup}
-                    />
-                  </TabsContent>
-                  
-                  <TabsContent value="components" className="mt-0">
-                    <ComponentSettings 
-                      column={selectedColumn}
-                      onChange={(property, value) => handleColumnChange(selectedColumnId!, property, value)}
-                      onApplyToGroup={handleApplyToGroup}
-                    />
-                  </TabsContent>
-                </ScrollArea>
+                <div className="flex-1 overflow-hidden">
+                  <ScrollArea className="h-full">
+                    <div className="p-4">
+                      <TabsContent value="header" className="mt-0 p-0">
+                        <HeaderSettings 
+                          column={selectedColumn}
+                          onChange={(property, value) => handleColumnChange(selectedColumnId!, property, value)}
+                        />
+                      </TabsContent>
+                      
+                      <TabsContent value="cell" className="mt-0 p-0">
+                        <CellSettings 
+                          column={selectedColumn}
+                          onChange={(property, value) => handleColumnChange(selectedColumnId!, property, value)}
+                        />
+                      </TabsContent>
+                      
+                      <TabsContent value="formatting" className="mt-0 p-0">
+                        <FormattingSettings 
+                          column={selectedColumn}
+                          onChange={(property, value) => handleColumnChange(selectedColumnId!, property, value)}
+                        />
+                      </TabsContent>
+                      
+                      <TabsContent value="components" className="mt-0 p-0">
+                        <ComponentSettings 
+                          column={selectedColumn}
+                          onChange={(property, value) => handleColumnChange(selectedColumnId!, property, value)}
+                        />
+                      </TabsContent>
+                    </div>
+                  </ScrollArea>
+                </div>
               </Tabs>
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">
@@ -613,34 +704,17 @@ export function ColumnSettingsDialog({
           </div>
         </div>
         
-        <DialogFooter className="flex justify-between items-center mt-4">
-          <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
-              size="icon" 
-              onClick={handleUndo}
-              disabled={changeIndex < 0}
-            >
-              <Undo2 className="h-4 w-4" />
-            </Button>
-            <Button 
-              variant="outline" 
-              size="icon" 
-              onClick={handleRedo}
-              disabled={changeIndex >= changeHistory.length - 1}
-            >
-              <Redo2 className="h-4 w-4" />
-            </Button>
-            <span className="text-xs text-muted-foreground">
-              {changeIndex + 1} of {changeHistory.length} changes
-            </span>
+        <DialogFooter className="p-3 border-t flex justify-between items-center gap-4 shrink-0">
+          <div className="text-xs text-muted-foreground">
+            {isDirty ? `${changeIndex + 1} of ${changeHistory.length} changes` : 'No changes'}
           </div>
           
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
+            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button 
+              size="sm"
               onClick={handleApply}
               disabled={!isDirty}
             >

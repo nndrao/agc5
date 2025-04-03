@@ -26,11 +26,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { ExtendedColumnState } from './types';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 interface ComponentSettingsProps {
   column: ExtendedColumnState;
   onChange: (property: keyof ExtendedColumnState, value: unknown) => void;
-  onApplyToGroup: (property: keyof ExtendedColumnState, value: unknown) => void;
 }
 
 // Cell renderer options
@@ -60,41 +60,63 @@ const cellEditors = [
 
 export function ComponentSettings({ 
   column, 
-  onChange,
-  onApplyToGroup
+  onChange
 }: ComponentSettingsProps) {
-  const [activeTab, setActiveTab] = useState('renderer');
+  // Create a preview style for the sample cell
+  const cellPreviewStyle = {
+    backgroundColor: column.cellBackgroundColor || '#ffffff',
+    color: column.cellTextColor || '#000000',
+    fontFamily: column.cellFontFamily || 'Inter',
+    fontSize: `${column.cellFontSize || 14}px`,
+    fontWeight: column.cellFontWeight || 'normal',
+    fontStyle: column.cellFontStyle || 'normal',
+    textAlign: column.cellAlignment || 'left' as 'left' | 'center' | 'right',
+    padding: '8px 12px',
+    borderRadius: '4px',
+    border: '1px solid #e2e8f0',
+    width: '100%',
+  };
+
+  // Get a sample value based on the column's data type
+  const getSampleValue = () => {
+    if (column.cellRenderer === 'checkboxRenderer') return '✓';
+    if (column.cellRenderer === 'ratingRenderer') return '★★★☆☆';
+    if (column.cellRenderer === 'badgeCellRenderer') return <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">Active</span>;
+    return column.headerName || column.colId || 'Sample Value';
+  };
   
   return (
-    <div className="space-y-6">
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="renderer">Cell Renderer</TabsTrigger>
-          <TabsTrigger value="editor">Cell Editor</TabsTrigger>
-          <TabsTrigger value="sizing">Column Sizing</TabsTrigger>
-        </TabsList>
-        
-        {/* Cell Renderer Tab */}
-        <TabsContent value="renderer" className="space-y-6 pt-4">
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-medium">Cell Renderer</h3>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => onApplyToGroup('cellRenderer', column.cellRenderer)}
-              >
-                Apply to Group
-              </Button>
-            </div>
+    <div className="space-y-4">
+      {/* Sample cell preview */}
+      <div className="mb-4">
+        <Label className="text-xs text-muted-foreground mb-1 block">Component Preview</Label>
+        <div style={cellPreviewStyle}>
+          {getSampleValue()}
+        </div>
+      </div>
+    
+      <Accordion type="single" collapsible defaultValue="renderer">
+        <AccordionItem value="renderer">
+          <AccordionTrigger className="text-sm font-medium">Cell Renderer</AccordionTrigger>
+          <AccordionContent>
+            <div className="space-y-4 pt-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs text-muted-foreground">Cell Renderer Type</Label>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="editable"
+                    checked={column.editable === true}
+                    onCheckedChange={(checked) => onChange('editable', checked)}
+                  />
+                  <Label htmlFor="editable" className="text-xs">Editable</Label>
+                </div>
+              </div>
             
-            <div className="space-y-2">
-              <Label>Cell Renderer</Label>
               <Select
                 value={column.cellRenderer || 'none'}
                 onValueChange={(value) => onChange('cellRenderer', value)}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-8">
                   <SelectValue placeholder="Select cell renderer" />
                 </SelectTrigger>
                 <SelectContent>
@@ -106,70 +128,71 @@ export function ComponentSettings({
                   <SelectItem value="status">Status Badge</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
             
-            <div className="grid gap-4 md:grid-cols-2">
-              {cellRenderers.map((renderer) => (
-                <div
-                  key={renderer.value}
-                  className={cn(
-                    "flex items-start p-3 rounded-md cursor-pointer border",
-                    column.cellRenderer === renderer.value ? "border-primary bg-primary/5" : "border-input"
-                  )}
-                  onClick={() => onChange('cellRenderer', renderer.value)}
-                >
-                  <renderer.icon className="h-5 w-5 mr-3 mt-0.5 shrink-0" />
-                  <div>
-                    <div className="font-medium">{renderer.label}</div>
-                    <div className="text-sm text-muted-foreground">{renderer.description}</div>
+              <div className="grid gap-3 md:grid-cols-2">
+                {cellRenderers.map((renderer) => (
+                  <div
+                    key={renderer.value}
+                    className={cn(
+                      "flex items-start p-3 rounded-md cursor-pointer border",
+                      column.cellRenderer === renderer.value ? "border-primary bg-primary/5" : "border-input"
+                    )}
+                    onClick={() => onChange('cellRenderer', renderer.value)}
+                  >
+                    <renderer.icon className="h-4 w-4 mr-2 mt-0.5 shrink-0" />
+                    <div>
+                      <div className="font-medium text-sm">{renderer.label}</div>
+                      <div className="text-xs text-muted-foreground">{renderer.description}</div>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-            
-            {/* Custom renderer settings */}
-            {column.cellRenderer === 'customRenderer' && (
-              <>
-                <Separator />
-                <div className="space-y-2">
-                  <Label htmlFor="customRenderer">Custom Renderer Component</Label>
-                  <Input
-                    id="customRenderer"
-                    placeholder="e.g. MyCustomCellRenderer"
-                    value={column.customRenderer || ''}
-                    onChange={(e) => onChange('customRenderer', e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Enter the name of a registered custom cell renderer component
-                  </p>
-                </div>
-              </>
-            )}
-          </div>
-        </TabsContent>
-        
-        {/* Cell Editor Tab */}
-        <TabsContent value="editor" className="space-y-6 pt-4">
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-medium">Cell Editor</h3>
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="editable"
-                  checked={column.editable === true}
-                  onCheckedChange={(checked) => onChange('editable', checked)}
-                />
-                <Label htmlFor="editable">Editable</Label>
+                ))}
               </div>
-            </div>
             
-            <div className="space-y-2">
-              <Label>Cell Editor</Label>
+              {/* Custom renderer settings */}
+              {column.cellRenderer === 'customRenderer' && (
+                <>
+                  <Separator className="my-2" />
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground mb-1 block">Custom Component Name</Label>
+                    <Input
+                      id="customRenderer"
+                      placeholder="e.g. MyCustomCellRenderer"
+                      value={column.customRenderer || ''}
+                      onChange={(e) => onChange('customRenderer', e.target.value)}
+                      className="h-8"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Enter the name of a registered custom component
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      
+        <AccordionItem value="editor">
+          <AccordionTrigger className="text-sm font-medium">Cell Editor</AccordionTrigger>
+          <AccordionContent>
+            <div className="space-y-4 pt-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs text-muted-foreground">Editor Type</Label>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="cell-editable"
+                    checked={column.editable === true}
+                    onCheckedChange={(checked) => onChange('editable', checked)}
+                  />
+                  <Label htmlFor="cell-editable" className="text-xs">Editable</Label>
+                </div>
+              </div>
+            
               <Select
                 value={column.cellEditor || 'none'}
                 onValueChange={(value) => onChange('cellEditor', value)}
+                disabled={!column.editable}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-8">
                   <SelectValue placeholder="Select cell editor" />
                 </SelectTrigger>
                 <SelectContent>
@@ -181,40 +204,38 @@ export function ComponentSettings({
                   <SelectItem value="checkbox">Checkbox</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
             
-            {/* Editor-specific settings */}
-            {column.cellEditor === 'agSelectCellEditor' && (
-              <div className="space-y-2">
-                <Label>Select Options</Label>
-                <div className="p-4 border rounded">
-                  <p className="text-sm text-muted-foreground mb-2">
-                    Enter values, one per line:
-                  </p>
-                  <textarea
-                    className="w-full min-h-[100px] p-2 border rounded"
-                    placeholder="Option 1&#10;Option 2&#10;Option 3"
-                    value={column.cellEditorParams?.values?.join('\n') || ''}
-                    onChange={(e) => {
-                      const values = e.target.value.split('\n').filter(v => v.trim());
-                      onChange('cellEditorParams', { ...column.cellEditorParams, values });
-                    }}
-                  />
+              {/* Editor-specific settings */}
+              {column.cellEditor === 'agSelectCellEditor' && column.editable && (
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground mb-1 block">Select Options</Label>
+                  <div className="p-3 border rounded">
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Enter values, one per line:
+                    </p>
+                    <textarea
+                      className="w-full min-h-[100px] p-2 border rounded text-sm"
+                      placeholder="Option 1&#10;Option 2&#10;Option 3"
+                      value={column.cellEditorParams?.values?.join('\n') || ''}
+                      onChange={(e) => {
+                        const values = e.target.value.split('\n').filter(v => v.trim());
+                        onChange('cellEditorParams', { ...column.cellEditorParams, values });
+                      }}
+                    />
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
-        </TabsContent>
-        
-        {/* Column Sizing Tab */}
-        <TabsContent value="sizing" className="space-y-6 pt-4">
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium">Column Width</h3>
-            
-            <div className="grid gap-4">
-              <div>
-                <Label htmlFor="columnWidth">Width ({column.width || 'auto'}px)</Label>
-                <div className="flex items-center gap-2 mt-2">
+              )}
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      
+        <AccordionItem value="sizing">
+          <AccordionTrigger className="text-sm font-medium">Column Sizing</AccordionTrigger>
+          <AccordionContent>
+            <div className="space-y-4 pt-2">
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground mb-1 block">Width ({column.width || 'auto'}px)</Label>
+                <div className="flex items-center gap-2">
                   <Slider
                     id="columnWidth"
                     value={[column.width || 200]}
@@ -223,10 +244,11 @@ export function ComponentSettings({
                     step={10}
                     onValueChange={(value) => onChange('width', value[0])}
                     disabled={column.flex !== undefined && column.flex > 0}
+                    className="flex-1"
                   />
                   <Input
                     type="number"
-                    className="w-20"
+                    className="w-16 h-8"
                     value={column.width || ''}
                     onChange={(e) => onChange('width', parseInt(e.target.value) || undefined)}
                     min={50}
@@ -234,7 +256,7 @@ export function ComponentSettings({
                   />
                 </div>
               </div>
-              
+            
               <div className="flex items-center gap-2">
                 <Checkbox
                   id="useFlex"
@@ -249,13 +271,13 @@ export function ComponentSettings({
                     }
                   }}
                 />
-                <Label htmlFor="useFlex">Use flex sizing</Label>
+                <Label htmlFor="useFlex" className="text-sm">Use flex sizing</Label>
               </div>
-              
+            
               {column.flex !== undefined && column.flex > 0 && (
-                <div>
-                  <Label htmlFor="flexValue">Flex value ({column.flex})</Label>
-                  <div className="flex items-center gap-2 mt-2">
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground mb-1 block">Flex value ({column.flex})</Label>
+                  <div className="flex items-center gap-2">
                     <Slider
                       id="flexValue"
                       value={[column.flex]}
@@ -263,30 +285,27 @@ export function ComponentSettings({
                       max={10}
                       step={1}
                       onValueChange={(value) => onChange('flex', value[0])}
+                      className="flex-1"
                     />
                     <Input
                       type="number"
-                      className="w-20"
+                      className="w-16 h-8"
                       value={column.flex}
                       onChange={(e) => onChange('flex', parseInt(e.target.value) || 1)}
                       min={1}
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className="text-xs text-muted-foreground">
                     Higher values receive more space (relative to other flex columns)
                   </p>
                 </div>
               )}
-            </div>
             
-            <Separator />
+              <Separator className="my-2" />
             
-            <div className="space-y-4">
-              <h3 className="text-lg font-medium">Size Constraints</h3>
-              
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <Label htmlFor="minWidth">Min Width (px)</Label>
+              <div className="grid gap-4 grid-cols-2">
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground mb-1 block">Min Width (px)</Label>
                   <Input
                     id="minWidth"
                     type="number"
@@ -294,10 +313,11 @@ export function ComponentSettings({
                     onChange={(e) => onChange('minWidth', parseInt(e.target.value) || undefined)}
                     min={20}
                     placeholder="Min width..."
+                    className="h-8"
                   />
                 </div>
-                <div>
-                  <Label htmlFor="maxWidth">Max Width (px)</Label>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground mb-1 block">Max Width (px)</Label>
                   <Input
                     id="maxWidth"
                     type="number"
@@ -305,61 +325,63 @@ export function ComponentSettings({
                     onChange={(e) => onChange('maxWidth', parseInt(e.target.value) || undefined)}
                     min={50}
                     placeholder="Max width..."
+                    className="h-8"
                   />
                 </div>
               </div>
-              
+            
               <div className="flex items-center gap-2">
                 <Switch
                   id="resizable"
                   checked={column.resizable !== false}
                   onCheckedChange={(checked) => onChange('resizable', checked)}
                 />
-                <Label htmlFor="resizable">Allow manual resizing</Label>
+                <Label htmlFor="resizable" className="text-sm">Allow manual resizing</Label>
               </div>
-              
-              <div className="flex items-center gap-2">
+            
+              <div className="flex flex-col gap-2 sm:flex-row">
                 <Button
                   variant="outline"
                   size="sm"
+                  className="w-full sm:w-auto text-xs h-8"
                   onClick={() => {
                     // This would trigger the autoSizeColumn API in the actual app
-                    // For this example, we'll just set a simulated width
                     onChange('width', 150);
                   }}
                 >
-                  <Minimize2 className="h-4 w-4 mr-2" />
+                  <Minimize2 className="h-3.5 w-3.5 mr-2" />
                   <span>Auto-size to Content</span>
                 </Button>
-                
+              
                 <Button
                   variant="outline"
                   size="sm"
+                  className="w-full sm:w-auto text-xs h-8"
                   onClick={() => {
-                    // For this example, we'll just set a simulated width
                     onChange('width', 200);
                   }}
                 >
-                  <Maximize2 className="h-4 w-4 mr-2" />
+                  <Maximize2 className="h-3.5 w-3.5 mr-2" />
                   <span>Reset to Default</span>
                 </Button>
               </div>
             </div>
-            
-            <Separator />
-            
-            <div className="space-y-4">
-              <h3 className="text-lg font-medium">Column Position</h3>
-              
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <Label htmlFor="pinned">Pin Position</Label>
+          </AccordionContent>
+        </AccordionItem>
+      
+        <AccordionItem value="position">
+          <AccordionTrigger className="text-sm font-medium">Column Position</AccordionTrigger>
+          <AccordionContent>
+            <div className="space-y-4 pt-2">
+              <div className="grid gap-4 grid-cols-2">
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground mb-1 block">Pin Position</Label>
                   <Select
                     value={column.pinned || ''}
                     onValueChange={(value) => onChange('pinned', value === 'none' ? null : value)}
                   >
-                    <SelectTrigger id="pinned">
-                      <SelectValue placeholder="Select pin position" />
+                    <SelectTrigger id="pinned" className="h-8">
+                      <SelectValue placeholder="Pin position" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Not Pinned</SelectItem>
@@ -368,14 +390,14 @@ export function ComponentSettings({
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <Label htmlFor="rowGroup">Row Grouping</Label>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground mb-1 block">Row Grouping</Label>
                   <Select
                     value={column.rowGroup ? 'true' : 'false'}
                     onValueChange={(value) => onChange('rowGroup', value === 'true')}
                   >
-                    <SelectTrigger id="rowGroup">
-                      <SelectValue placeholder="Select grouping" />
+                    <SelectTrigger id="rowGroup" className="h-8">
+                      <SelectValue placeholder="Grouping" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="false">No Grouping</SelectItem>
@@ -384,10 +406,30 @@ export function ComponentSettings({
                   </Select>
                 </div>
               </div>
+            
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="sortable"
+                  checked={column.sortable !== false}
+                  onCheckedChange={(checked) => onChange('sortable', checked)}
+                />
+                <Label htmlFor="sortable" className="text-sm">Allow sorting</Label>
+              </div>
+            
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="filter"
+                  checked={column.filter !== false}
+                  onCheckedChange={(checked) => onChange('filter', checked)}
+                />
+                <Label htmlFor="filter" className="text-sm">Allow filtering</Label>
+              </div>
             </div>
-          </div>
-        </TabsContent>
-      </Tabs>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
+    
+      <Separator className="my-4" />
     </div>
   );
 } 
