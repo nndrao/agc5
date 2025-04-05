@@ -53,15 +53,20 @@ import { cn } from "@/lib/utils";
 import { GeneralSettingsDialog } from "./Settings/GeneralSettingsDialog";
 import { ColumnSettingsDialog } from './ColumnSettings/ColumnSettingsDialog';
 import { defaultGridSettings } from "./Settings/defaultSettings";
-import { ProfileProvider, ProfileManagerUI } from "./ProfileManager";
-import { useProfileContext } from "./ProfileManager/ProfileContext";
+import { ProfileManagerUI } from "./ProfileManager/ProfileManagerUI.shadcn";
 import { getSortModelFromColumnState } from "./ProfileManager/GridStateUtils";
+import { NotificationManager } from "./NotificationManager";
 
 import { ModuleRegistry, themeQuartz, GridReadyEvent } from "ag-grid-community";
-import { AllEnterpriseModule } from "ag-grid-enterprise";
+import { AllEnterpriseModule, LicenseManager } from "ag-grid-enterprise";
 import { AgGridReact } from "ag-grid-react";
 import { Toaster, toast } from "sonner";
-import { useGridStore } from './store/gridStore';
+import { useGridStore } from './store/unifiedGridStore';
+import { useProfileStore } from './store/profileStore';
+
+// Set AG Grid license key
+// Replace with your actual license key or use an environment variable
+LicenseManager.setLicenseKey('your_license_key_here');
 
 ModuleRegistry.registerModules([AllEnterpriseModule]);
 
@@ -79,11 +84,7 @@ interface DataTableProps<TData, TValue> {
 }
 
 export function DataTableWithProfiles<TData, TValue>(props: DataTableProps<TData, TValue>) {
-  return (
-    <ProfileProvider>
-      <DataTable {...props} />
-    </ProfileProvider>
-  );
+  return <DataTable {...props} />;
 }
 
 export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>) {
@@ -92,21 +93,21 @@ export function DataTable<TData, TValue>({ data }: DataTableProps<TData, TValue>
 
 // Define default column definitions
 const defaultColumnDefs = [
-  { 
+  {
     field: "make",
     headerName: "Make",
     filter: true,
     sortable: true,
     resizable: true,
-  }, 
-  { 
+  },
+  {
     field: "model",
     headerName: "Model",
     filter: true,
     sortable: true,
     resizable: true,
-  }, 
-  { 
+  },
+  {
     field: "price",
     headerName: "Price",
     filter: true,
@@ -122,23 +123,38 @@ const defaultColumnDefs = [
 ];
 
 function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
-  // Access store
-  const { 
+  // Access unified store
+  const {
+    gridApi,
     columnState,
-    setColumnState,
-    settings: gridSettings,
-    setSettings,
     filterModel,
-    setFilterModel,
-    sortModel, 
-    setSortModel,
+    sortModel,
+    settings: gridSettings,
     isColumnSettingsOpen,
+    isGeneralSettingsOpen,
+    selectedProfileId,
+    profiles,
+    dialogSettings,
+
+    setGridApi,
+    setColumnState,
+    setFilterModel,
+    setSortModel,
+    setSettings,
+    setDialogSettings,
     setColumnSettingsOpen,
-    isApplyingColumnChanges,
-    setApplyingColumnChanges
+    setGeneralSettingsOpen,
+    extractGridState,
+    applyGridState,
+    saveCurrentProfile,
+    selectProfile
   } = useGridStore();
 
+  // Access profile store
+  const { updateCurrentProfile } = useProfileStore();
+
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isApplyingColumnChanges, setApplyingColumnChanges] = useState(false);
   const { theme: currentTheme, setTheme } = useTheme();
   const [selectedFont, setSelectedFont] = useState(monospacefonts[0]);
   const [gridTheme, setGridTheme] = useState(themeQuartz);
@@ -146,87 +162,127 @@ function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const gridRef = useRef<AgGridReact>(null);
   const [gridReady, setGridReady] = useState(false);
-  
+
   // Add state for column definitions
   const [currentColumnDefs, setCurrentColumnDefs] = useState(defaultColumnDefs);
-  
-  // Access the profile context to get profile data
-  const { 
-    profiles, 
-    selectedProfileId, 
-    selectProfile,
-    isLoading: profilesLoading,
-    loadProfileById,
-    updateCurrentProfile
-  } = useProfileContext();
+
+  // We now use the unified store for profile data
+
+  // Helper function to load a profile by ID
+  const loadProfileById = async (profileId: string, gridApi: any, showNotification: boolean = true) => {
+    try {
+      console.log(`Loading profile with ID: ${profileId}`);
+
+      // Use the selectProfile function from the unified store
+      selectProfile(profileId);
+
+      // Find the profile in the profiles array
+      const profile = profiles.find(p => p.id === profileId);
+
+      if (!profile) {
+        console.error(`Profile with ID ${profileId} not found`);
+        throw new Error(`Profile with ID ${profileId} not found`);
+      }
+
+      console.log(`Profile loaded: ${profile.name}`);
+
+      // Return the profile
+      return profile;
+    } catch (error) {
+      console.error('Error loading profile:', error);
+      throw error;
+    }
+  };
 
   // Watch for column settings dialog open/close
   useEffect(() => {
     if (isColumnSettingsOpen) {
       console.log('Column settings dialog opened - disabling auto column updates');
       console.log('Current column definitions (before dialog):', currentColumnDefs);
-      setApplyingColumnChanges(false);
+      // Only set if it's different to avoid loops
+      if (isApplyingColumnChanges) {
+        setApplyingColumnChanges(false);
+      }
     } else {
       // When dialog closes, wait for any pending column changes to complete
       console.log('Column settings dialog closed - waiting for changes to complete');
       console.log('Current column definitions (after dialog):', currentColumnDefs);
-      
+
       // Use a shorter delay since we're already waiting in the dialog
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         console.log('Re-enabling auto column updates after changes complete');
         if (gridRef.current?.api) {
           const gridColumns = gridRef.current.api.getColumnDefs();
           console.log('Grid column definitions:', gridColumns);
         }
-        //setApplyingColumnChanges(true);
+        // Commented out to prevent loops
+        // setApplyingColumnChanges(true);
       }, 2000); // 2 seconds wait to allow state updates to complete
+
+      // Clean up timeout if component unmounts
+      return () => clearTimeout(timeoutId);
     }
-  }, [isColumnSettingsOpen, setApplyingColumnChanges, currentColumnDefs]);
+  }, [isColumnSettingsOpen, currentColumnDefs, isApplyingColumnChanges]); // Removed setApplyingColumnChanges from deps
 
   // Initialize grid settings from the selected profile
+  // Using a ref to track if we've already loaded this profile
+  const loadedProfileRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (profiles.length > 0 && selectedProfileId && gridReady) {
-      console.log('Grid is ready and a profile is selected, loading profile data...');
-      
-      // Use the context method to load the profile with the grid API
-      if (gridRef.current?.api) {
-        // Handle the Promise returned by loadProfileById
-        (async () => {
-          try {
-            console.log('Loading profile with ID:', selectedProfileId);
-            const profile = await loadProfileById(selectedProfileId, gridRef.current?.api);
-            if (profile) {
-              console.log('Profile loaded successfully:', profile.name);
-              
-              // Update the gridSettings state with the profile settings
-              if (profile.settings) {
-                console.log('Updating gridSettings state from loaded profile');
-                //setSettings(profile.settings);
-              }
-            } else {
-              console.error('Profile not found or could not be loaded');
-            }
-          } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : String(err);
-            console.error('Error loading profile:', errorMessage);
-            toast.error('Error loading profile: ' + errorMessage);
-          }
-        })();
-      } else {
-        // Fallback to just selecting the profile without applying it
-        const selectedProfile = profiles.find(p => p.id === selectedProfileId);
-        if (selectedProfile?.settings) {
-          console.log('Grid API not ready, only initializing settings state from profile:', selectedProfile.name);
-          setSettings(selectedProfile.settings);
-        }
+    // Skip if conditions aren't met or if we've already loaded this profile
+    if (!profiles.length || !selectedProfileId || !gridReady ||
+        loadedProfileRef.current === selectedProfileId) {
+      if (!gridReady) {
+        console.log('Grid not ready yet, waiting before loading profile');
+      } else if (!selectedProfileId) {
+        console.log('No profile selected, using default grid settings');
       }
-    } else if (!gridReady) {
-      console.log('Grid not ready yet, waiting before loading profile');
-    } else {
-      console.log('No profile selected, using default grid settings');
+      return;
     }
-  }, [profiles, selectedProfileId, gridReady, loadProfileById]);
-  
+
+    console.log('Grid is ready and a profile is selected, loading profile data...');
+
+    // Update the ref to track this profile
+    loadedProfileRef.current = selectedProfileId;
+
+    // Use the context method to load the profile with the grid API
+    if (gridRef.current?.api) {
+      // Handle the Promise returned by loadProfileById
+      (async () => {
+        try {
+          console.log('Loading profile with ID:', selectedProfileId);
+          // Only show notification for user-initiated profile loads, not automatic ones
+          const profile = await loadProfileById(selectedProfileId, gridRef.current?.api, false);
+          if (profile) {
+            console.log('Profile loaded successfully:', profile.name);
+
+            // Update the gridSettings state with the profile settings
+            if (profile.settings) {
+              console.log('Updating gridSettings state from loaded profile');
+              // Commented out to prevent loops
+              // setSettings(profile.settings);
+            }
+          } else {
+            console.error('Profile not found or could not be loaded');
+          }
+        } catch (err) {
+          const errorMessage = err instanceof Error ? err.message : String(err);
+          console.error('Error loading profile:', errorMessage);
+          // Don't show toast to prevent potential loops
+          // toast.error('Error loading profile: ' + errorMessage);
+        }
+      })();
+    } else {
+      // Fallback to just selecting the profile without applying it
+      const selectedProfile = profiles.find(p => p.id === selectedProfileId);
+      if (selectedProfile?.settings) {
+        console.log('Grid API not ready, only initializing settings state from profile:', selectedProfile.name);
+        // Commented out to prevent loops
+        // setSettings(selectedProfile.settings);
+      }
+    }
+  }, [profiles, selectedProfileId, gridReady]); // Removed loadProfileById from deps
+
   // Helper function to validate rowSelection type
   const validateRowSelectionType = (rowSelection: any): boolean => {
     if (!rowSelection) return false;
@@ -240,19 +296,19 @@ function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
   useEffect(() => {
     // Check if rowSelection is valid
     const rowSelectionValid = validateRowSelectionType(gridSettings.rowSelection);
-    
+
     if (!rowSelectionValid) {
       console.warn('Invalid rowSelection detected:', gridSettings.rowSelection);
-      
+
       // Handle different invalid cases
-      let rowSelection: { 
-        type: 'singleRow' | 'multiRow'; 
-        enableClickSelection?: boolean; 
+      let rowSelection: {
+        type: 'singleRow' | 'multiRow';
+        enableClickSelection?: boolean;
         enableSelectionWithoutKeys?: boolean;
         groupSelects?: 'children' | 'descendants' | 'filteredDescendants';
         copySelectedRows?: boolean;
       };
-      
+
       if (!gridSettings.rowSelection) {
         // Handle undefined or null case
         console.log('Creating default rowSelection object (undefined case)');
@@ -291,7 +347,7 @@ function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
           copySelectedRows: !gridSettings.suppressCopyRowsToClipboard
         };
       }
-      
+
       // Update grid settings with fixed rowSelection
       console.log('Setting corrected rowSelection:', rowSelection);
       setSettings(prev => ({
@@ -314,19 +370,19 @@ function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
         copySelectedRows: !gridSettings.suppressCopyRowsToClipboard
       };
     }
-    
+
     // Always return a properly formatted object with required type property
     return {
       type: (rowSelection?.type === 'singleRow' ? 'singleRow' : 'multiRow') as ('singleRow' | 'multiRow'),
-      enableClickSelection: rowSelection?.enableClickSelection !== undefined 
-        ? rowSelection.enableClickSelection 
+      enableClickSelection: rowSelection?.enableClickSelection !== undefined
+        ? rowSelection.enableClickSelection
         : !gridSettings.suppressRowClickSelection,
-      enableSelectionWithoutKeys: rowSelection?.enableSelectionWithoutKeys !== undefined 
-        ? rowSelection.enableSelectionWithoutKeys 
+      enableSelectionWithoutKeys: rowSelection?.enableSelectionWithoutKeys !== undefined
+        ? rowSelection.enableSelectionWithoutKeys
         : !!gridSettings.rowMultiSelectWithClick,
       groupSelects: rowSelection?.groupSelects || 'filteredDescendants',
-      copySelectedRows: rowSelection?.copySelectedRows !== undefined 
-        ? rowSelection.copySelectedRows 
+      copySelectedRows: rowSelection?.copySelectedRows !== undefined
+        ? rowSelection.copySelectedRows
         : !gridSettings.suppressCopyRowsToClipboard
     };
   };
@@ -372,7 +428,7 @@ function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
       spacing: 6,
       wrapperBorderRadius: 2,
     };
-    
+
     const darkThemeParams = {
       accentColor: "#8AAAA7",
       backgroundColor: "#1f2836",
@@ -396,18 +452,18 @@ function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
       spacing: 6,
       wrapperBorderRadius: 2,
     };
-    
+
     // Create a new theme with both light and dark mode parameters
     const newTheme = themeQuartz
       .withParams(lightThemeParams, "light")
       .withParams(darkThemeParams, "dark");
-      
+
     setGridTheme(newTheme);
-    
+
     // Also apply CSS variables for AG-Grid 33+ recommended approach
     // This provides more flexibility and better performance
     document.documentElement.style.setProperty('--ag-font-family', fontFamily);
-    
+
     // Apply other custom CSS variables that match our theme settings
     if (currentTheme === 'dark') {
       document.documentElement.style.setProperty('--ag-background-color', darkThemeParams.backgroundColor);
@@ -461,465 +517,62 @@ function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
   const onGridReady = (params: GridReadyEvent) => {
     console.log("Grid Ready!");
     setGridReady(true);
-    
-    const gridApi = params.api;
-    
+
+    // Store the grid API in our unified store
+    setGridApi(params.api);
+
     // In AG-Grid 33+, columnApi is merged into gridApi
-    if (!gridApi) {
+    if (!params.api) {
       console.error("Grid API is undefined in onGridReady");
       return;
     }
-    
-    // If we have column state in the store, apply it to the grid
-    if (columnState.length > 0) {
-      gridApi.applyColumnState({
-        state: columnState,
-        applyOrder: true
-      });
-    } else {
-      // Otherwise, get the column state from the grid and update the store
-      setColumnState(gridApi.getColumnState());
-    }
-    
-    // Same for filter model
-    if (filterModel && Object.keys(filterModel).length > 0) {
-      gridApi.setFilterModel(filterModel);
-    } else {
-      setFilterModel(gridApi.getFilterModel());
-    }
-    
-    // For sort model in AG-Grid 33+, we need to extract from column state
-    if (sortModel && sortModel.length > 0) {
-      gridApi.setSortModel(sortModel);
-    } else {
-      // Get the column state and extract sort model from it
-      const currentColumnState = gridApi.getColumnState();
-      const currentSortModel = getSortModelFromColumnState(currentColumnState);
-      setSortModel(currentSortModel);
-    }
-    
-    // Load the selected profile if it exists
-    if (selectedProfileId) {
-      console.log('Grid ready and profile selected, loading profile:', selectedProfileId);
-      
-      (async () => {
-        try {
-          console.log('Loading profile from onGridReady with ID:', selectedProfileId);
-          const profile = await loadProfileById(selectedProfileId, params.api);
-          if (profile) {
-            console.log('Profile loaded from onGridReady:', profile.name);
-            
-            // Update the gridSettings state with the profile settings
-            if (profile.settings) {
-              console.log('Updating gridSettings state from profile loaded in onGridReady');
-              setSettings(profile.settings);
-              
-              // Update column definitions if available
-              if (gridRef.current?.api) {
-                const columnDefs = gridRef.current.api.getColumnDefs();
-                if (columnDefs) {
-                  console.log('Updating column definitions from initial profile load');
-                  setCurrentColumnDefs(columnDefs as any[]);
-                }
-              }
-              
-              // Add retry mechanism to verify settings are applied
-              setTimeout(() => {
-                // Check if profile settings are already applied - if not, try again
-                if (gridRef.current?.api) {
-                  const currentDomLayout = gridRef.current.api.getGridOption('domLayout');
-                  const selectedProfile = profiles.find(p => p.id === selectedProfileId);
-                  
-                  if (selectedProfile?.settings && 
-                      selectedProfile.settings.domLayout !== currentDomLayout) {
-                    
-                    console.log('Settings not yet applied correctly, retrying profile load');
-                    // Try loading again with a small delay
-                    (async () => {
-                      try {
-                        const profile = await loadProfileById(selectedProfileId, gridRef.current?.api);
-                        if (profile?.settings) {
-                          setSettings(profile.settings);
-                          
-                          // Update column definitions if available
-                          if (gridRef.current?.api) {
-                            const columnDefs = gridRef.current.api.getColumnDefs();
-                            if (columnDefs) {
-                              console.log('Updating column definitions from profile');
-                              setCurrentColumnDefs(columnDefs as any[]);
-                            }
-                          }
-                        }
-                      } catch (err) {
-                        const errorMessage = err instanceof Error ? err.message : String(err);
-                        console.error('Error in retry loading profile:', errorMessage);
-                      }
-                    })();
-                  } else {
-                    console.log('Settings verified to be applied correctly');
-                  }
-                }
-              }, 100);
-            }
-          } else {
-            console.error('Profile not found or could not be loaded from onGridReady');
-          }
-        } catch (err) {
-          const errorMessage = err instanceof Error ? err.message : String(err);
-          console.error('Error loading profile from onGridReady:', errorMessage);
-          toast.error('Error loading profile: ' + errorMessage);
-        }
-      })();
-    } else {
-      console.log('Grid ready but no profile selected');
-    }
+
+    // Apply the current state from the store to the grid
+    // This will apply column state, filter model, sort model, and settings
+    console.log('Applying grid state from store to grid');
+    applyGridState();
+
+    console.log('Grid ready complete');
   };
 
   // Event handlers for grid events - use AG-Grid 33+ compatible event names
+  // Note: We don't automatically update the store when grid state changes
+  // The store is only updated when explicitly saving a profile
   const onColumnMoved = (event: any) => {
-    if (event.api && !isApplyingColumnChanges) {
-      setColumnState(event.api.getColumnState());
-    }
+    console.log('Column moved - not automatically updating store');
+    // We don't update the store here
   };
 
   const onFilterChanged = (event: any) => {
-    if (event.api) {
-      setFilterModel(event.api.getFilterModel());
-    }
+    console.log('Filter changed - not automatically updating store');
+    // We don't update the store here
   };
 
   const onSortChanged = (event: any) => {
-    if (event.api) {
-      // In AG-Grid 33+, get sort model from column state
-      const columnState = event.api.getColumnState();
-      const sortModel = getSortModelFromColumnState(columnState);
-      setSortModel(sortModel);
-    }
+    console.log('Sort changed - not automatically updating store');
+    // We don't update the store here
   };
 
   const handleApplySettings = (settings: any, preserveColumnSizes: boolean = false) => {
     console.log(`Applying grid settings (preserveColumnSizes=${preserveColumnSizes}):`, settings);
-    
-    // Create a merged settings object that combines the current settings with the new ones
-    // This ensures we don't lose settings that aren't explicitly provided
-    const mergedSettings = {
-      ...gridSettings,  // Start with all current settings
-      ...settings       // Override with the new settings
-    };
-    
-    // Update the stored settings with the merged settings
-    setSettings(mergedSettings);
-    
-    // Update context
-    setSettings(mergedSettings);
-    
+
+    // First update the settings in the store
+    setSettings(settings);
+
+    // Save the settings to the dialog settings in the store
+    // This ensures that the dialog settings are updated when the user applies changes
+    setDialogSettings({
+      ...dialogSettings,
+      generalSettings: settings
+    });
+    console.log('General settings saved to dialog settings in store');
+
+    // Then apply the settings to the grid
+    applyGridState();
+
     if (!gridRef.current || !gridRef.current.api) {
       console.warn('Grid API not available, cannot apply settings');
       return;
-    }
-    
-    const gridApi = gridRef.current.api;
-    
-    // Capture current column state to preserve column widths and other properties
-    // In AG-Grid 33+, use gridApi for column state operations
-    const currentColumnState = gridApi.getColumnState ? gridApi.getColumnState() : [];
-    if (preserveColumnSizes) {
-      logColumnWidths(gridApi, 'Column widths before applying settings (will be preserved)');
-    }
-    
-    // Create a settings map to apply
-    const gridSettingsMap: Record<string, any> = {
-      // Display and Layout
-      headerHeight: settings.headerHeight,
-      rowHeight: settings.rowHeight,
-      domLayout: settings.domLayout,
-      suppressRowHoverHighlight: settings.suppressRowHoverHighlight,
-      // Use suppressCellFocus instead of invalid suppressCellSelection
-      suppressCellFocus: settings.suppressCellFocus !== undefined ? 
-                       settings.suppressCellFocus : 
-                       settings.suppressCellSelection,
-      // Note: suppressRowClickSelection is now handled via rowSelection.enableClickSelection
-      suppressScrollOnNewData: settings.suppressScrollOnNewData,
-      // suppressColumnVirtualisation is an initial property that cannot be updated
-      // suppressRowVirtualisation is an initial property that cannot be updated
-      // ensureDomOrder is an initial property that cannot be updated
-      alwaysShowVerticalScroll: settings.alwaysShowVerticalScroll,
-      // Removed: suppressBrowserResizeObserver (deprecated with no effect)
-      // enableRtl is an initial property that cannot be updated
-      suppressColumnMoveAnimation: settings.suppressColumnMoveAnimation,
-      floatingFiltersHeight: settings.floatingFilter ? 35 : 0,
-      
-      // Data and State
-      pagination: settings.pagination,
-      paginationPageSize: settings.paginationPageSize,
-      // Removed: cacheBlockSize (not valid with clientSide row model)
-      // Use cellSelection instead of deprecated enableRangeSelection properties
-      cellSelection: settings.cellSelection || {
-        handle: settings.enableFillHandle ? 'fill' : 
-               (settings.enableRangeHandle ? 'range' : true)
-      },
-      suppressRowDrag: settings.suppressRowDrag,
-      suppressMovableColumns: settings.suppressMovableColumns,
-      // Use resetRowDataOnUpdate instead of invalid immutableData/deltaRowDataMode
-      resetRowDataOnUpdate: settings.resetRowDataOnUpdate !== undefined ?
-                          settings.resetRowDataOnUpdate :
-                          !settings.immutableData,
-      rowBuffer: settings.rowBuffer,
-      rowDragManaged: settings.rowDragManaged,
-      // Use asyncTransactionWaitMillis instead of invalid batchUpdateWaitMillis
-      asyncTransactionWaitMillis: settings.asyncTransactionWaitMillis !== undefined ?
-                                settings.asyncTransactionWaitMillis :
-                                settings.batchUpdateWaitMillis,
-      
-      // Selection - only set valid properties in AG-Grid 33+
-      // rowSelection is set directly on the component
-      // rowMultiSelectWithClick is handled via rowSelection.enableSelectionWithoutKeys
-      
-      // Editing
-      editType: settings.editType,
-      singleClickEdit: settings.singleClickEdit,
-      suppressClickEdit: settings.suppressClickEdit,
-      // Use valid navigation properties
-      enterNavigatesVertically: settings.enterNavigatesVertically !== undefined ? 
-                              settings.enterNavigatesVertically : 
-                              settings.enterMovesDown,
-      enterNavigatesVerticallyAfterEdit: settings.enterNavigatesVerticallyAfterEdit !== undefined ? 
-                                      settings.enterNavigatesVerticallyAfterEdit : 
-                                      settings.enterMovesDownAfterEdit,
-      // undoRedoCellEditing is an initial property that cannot be updated
-      // Removed: undoRedoCellEditingLimit (initial property that cannot be updated)
-      // Removed: stopEditingWhenCellsLoseFocus (initial property that cannot be updated)
-      // Removed: tabNavigatesVertically (invalid property)
-      
-      // Filtering
-      suppressMenuHide: settings.suppressMenuHide,
-      quickFilterText: settings.quickFilterText,
-      // Removed: cacheQuickFilter (initial property that cannot be updated)
-      
-      // Appearance
-      animateRows: settings.animateRows,
-      // Removed: enableBrowserTooltips (initial property that cannot be updated)
-      suppressContextMenu: settings.suppressContextMenu,
-      // Note: suppressCopyRowsToClipboard/suppressCopySingleCellRanges handled via rowSelection
-      enableCellTextSelection: settings.enableCellTextSelection,
-      // Use valid flash properties instead of invalid enableCellChangeFlash
-      cellFlashDuration: settings.cellFlashDuration !== undefined ? 
-                      settings.cellFlashDuration : 
-                      (settings.enableCellChangeFlash ? 1000 : 0),
-      cellFadeDuration: settings.cellFadeDuration !== undefined ? 
-                      settings.cellFadeDuration : 
-                      (settings.enableCellChangeFlash ? 500 : 0),
-      tooltipShowDelay: settings.tooltipShowDelay,
-      tooltipHideDelay: settings.tooltipHideDelay,
-      
-      // Row Grouping
-      groupDefaultExpanded: settings.groupDefaultExpanded,
-      groupDisplayType: settings.groupDisplayType,
-      // Use valid properties instead of invalid groupIncludeFooter/groupIncludeTotalFooter
-      groupTotalRow: settings.groupTotalRow !== undefined ? 
-                  settings.groupTotalRow : 
-                  settings.groupIncludeFooter,
-      grandTotalRow: settings.grandTotalRow !== undefined ? 
-                  settings.grandTotalRow : 
-                  settings.groupIncludeTotalFooter,
-      showOpenedGroup: settings.showOpenedGroup,
-      rowGroupPanelShow: settings.rowGroupPanelShow,
-      // Removed: enableRowGroup (not valid at grid level, should be in defaultColDef)
-      suppressDragLeaveHidesColumns: settings.suppressDragLeaveHidesColumns,
-      
-      // Sorting
-      multiSortKey: settings.multiSortKey,
-      accentedSort: settings.accentedSort,
-      // Note: unSortIcon moved to defaultColDef
-      
-      // Export/Import
-      suppressCsvExport: settings.suppressCsvExport,
-      suppressExcelExport: settings.suppressExcelExport,
-      
-      // Column Controls
-      autoSizePadding: settings.autoSizePadding,
-      colResizeDefault: settings.colResizeDefault,
-      maintainColumnOrder: settings.maintainColumnOrder,
-      
-      // Advanced
-      enableCharts: settings.enableCharts,
-      // Removed: suppressAriaColCount and suppressAriaRowCount (invalid properties)
-      
-      // Advanced Filtering  
-      excludeChildrenWhenTreeDataFiltering: settings.excludeChildrenWhenTreeDataFiltering
-    };
-    
-    // Apply each setting using setGridOption for maximum compatibility
-    Object.entries(gridSettingsMap).forEach(([key, value]) => {
-      // Skip settings that affect column widths if preserveColumnSizes is true
-      if (preserveColumnSizes && 
-          ['defaultColDef', 'columnDefs', 'sideBar', 'autoSizePadding'].includes(key)) {
-        console.log(`Skipping ${key} to preserve column widths`);
-        return;
-      }
-      
-      try {
-        if (value !== undefined) {
-          console.log(`Setting grid option: ${key} = ${value}`);
-          (gridApi as any).setGridOption(key as any, value);
-        }
-      } catch (error) {
-        console.warn(`Failed to set grid option: ${key}`, error);
-        
-        // Try alternative methods for specific properties if setGridOption fails
-        try {
-          if (key === 'headerHeight' && (gridApi as any).setHeaderHeight) {
-            (gridApi as any).setHeaderHeight(value);
-          } else if (key === 'paginationPageSize' && (gridApi as any).paginationSetPageSize) {
-            (gridApi as any).paginationSetPageSize(value);
-          } else if (key === 'domLayout' && (gridApi as any).setDomLayout) {
-            (gridApi as any).setDomLayout(value);
-          } else if (key === 'animateRows' && (gridApi as any).setAnimateRows) {
-            (gridApi as any).setAnimateRows(value);
-          } else if (key === 'editType') {
-            // Special handling for edit type - this might need different properties in different versions
-            if ((gridApi as any).setGridOption) {
-              try {
-                // Try different property names that might exist in AG Grid
-                (gridApi as any).setGridOption('editType' as any, value);
-              } catch (e1) {
-                try { 
-                  (gridApi as any).setGridOption('cellEditingType' as any, value); 
-                } catch (e2) {
-                  console.warn('Could not set edit type with any property name');
-                }
-              }
-            }
-          }
-        } catch (fallbackError) {
-          console.warn(`Fallback method failed for: ${key}`, fallbackError);
-        }
-      }
-    });
-    
-    // Note: sortingOrder at grid level is deprecated in AG-Grid 33+, 
-    // Instead we move it to defaultColDef.sortingOrder (handled in the defaultColDef section below)
-    
-    // Special handling for edit type settings
-    try {
-      // Handle edit type specifically
-      if (settings.editType) {
-        console.log(`Configuring edit type: ${settings.editType}`);
-        
-        // Different AG Grid versions might need different configurations
-        if (settings.editType === 'fullRow') {
-          (gridApi as any).setGridOption('editType' as any, 'fullRow');
-        } else if (settings.editType === 'singleClick') {
-          (gridApi as any).setGridOption('editType' as any, 'singleClick');
-          (gridApi as any).setGridOption('singleClickEdit' as any, true);
-        } else if (settings.editType === 'doubleClick') {
-          (gridApi as any).setGridOption('editType' as any, 'doubleClick');
-          (gridApi as any).setGridOption('singleClickEdit' as any, false);
-        }
-      }
-    } catch (editTypeError) {
-      console.warn('Failed to configure edit type settings', editTypeError);
-    }
-    
-    // Handle floating filters (must be done at both grid and column level)
-    try {
-      // Set the floating filters height (required at grid level)
-      if (settings.floatingFilter) {
-        (gridApi as any).setGridOption('floatingFiltersHeight', 35); // Default height for floating filters
-      } else {
-        (gridApi as any).setGridOption('floatingFiltersHeight', 0); // Hide when disabled
-      }
-    } catch (filterError) {
-      console.warn('Failed to set floating filter height', filterError);
-    }
-    
-    // Update default column definitions for editing settings
-    try {
-      // Copy existing defaultColDef
-      const updatedDefaultColDef = { ...defaultColDef };
-      
-      // Apply non-width related settings
-      updatedDefaultColDef.editable = settings.defaultColEditable;
-      updatedDefaultColDef.resizable = settings.defaultColResizable;
-      updatedDefaultColDef.sortable = settings.defaultColSortable;
-      updatedDefaultColDef.filter = settings.defaultColFilter;
-      updatedDefaultColDef.filterParams = settings.defaultColFilterParams;
-      updatedDefaultColDef.autoHeight = settings.defaultColAutoHeight;
-      updatedDefaultColDef.wrapText = settings.defaultColWrapText;
-      updatedDefaultColDef.cellStyle = settings.defaultColCellStyle;
-      updatedDefaultColDef.floatingFilter = settings.floatingFilter;
-      
-      // AG-Grid 33+: Move sortingOrder to defaultColDef
-      updatedDefaultColDef.sortingOrder = settings.defaultColSortingOrder || 
-                                        settings.sortingOrder || 
-                                        ['asc', 'desc', null];
-                                        
-      // AG-Grid 33+: Move unSortIcon to defaultColDef
-      updatedDefaultColDef.unSortIcon = settings.defaultColUnSortIcon || 
-                                      settings.unSortIcon || 
-                                      false;
-      
-      // Only apply width-related settings if we are not preserving column sizes
-      if (!preserveColumnSizes) {
-        updatedDefaultColDef.flex = settings.defaultColFlex;
-        updatedDefaultColDef.minWidth = settings.defaultColMinWidth;
-        updatedDefaultColDef.maxWidth = settings.defaultColMaxWidth;
-      }
-      
-      // Update the defaultColDef
-      (gridApi as any).setGridOption('defaultColDef', updatedDefaultColDef);
-      console.log('Updated defaultColDef with settings' + 
-                  (preserveColumnSizes ? ' (width properties preserved)' : ''));
-      
-      // Just refresh cells without updating column defs
-      setTimeout(() => {
-        if ((gridApi as any).refreshCells) {
-          (gridApi as any).refreshCells({ force: true });
-        }
-      }, 50);
-    } catch (defColDefError) {
-      console.warn('Failed to update defaultColDef with settings', defColDefError);
-    }
-    
-    // Refresh the grid UI but preserve column state if needed
-    try {
-      // Important: For filters to refresh properly, we need these specific methods
-      if ((gridApi as any).refreshHeader) (gridApi as any).refreshHeader();
-      
-      // For floating filters specifically, we need to trigger a header refresh
-      if (settings.floatingFilter) {
-        try {
-          (gridApi as any).refreshHeader();
-        } catch (headerError) {
-          console.warn('Error refreshing header components:', headerError);
-        }
-      }
-      
-      if ((gridApi as any).redrawRows) (gridApi as any).redrawRows();
-      
-      // Restore column state to preserve widths if requested
-      if (preserveColumnSizes && gridApi && currentColumnState.length > 0) {
-        console.log('Restoring column state after applying settings to preserve widths');
-        gridApi.applyColumnState({
-          state: currentColumnState,
-          applyOrder: true
-        });
-        
-        // Log final column widths
-        logColumnWidths(gridApi, 'Column widths after restoring column state');
-      }
-      
-      console.log('Grid settings applied successfully' + 
-                  (preserveColumnSizes ? ' with width preservation' : ''));
-
-      // Auto-save the updated settings to the current profile
-      const filterModel = gridApi.getFilterModel ? gridApi.getFilterModel() : {};
-      const sortModel = getSortModelFromColumnState(currentColumnState);
-      
-      // Use the merged settings when saving to the profile
-      saveSettingsToProfile(mergedSettings, currentColumnState);
-    } catch (error) {
-      console.warn('Error refreshing grid after settings applied', error);
     }
   };
 
@@ -927,34 +580,66 @@ function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
   const handleColumnSettingsApply = (updatedColumnDefs: any[]) => {
     console.log('Received updated column definitions from column settings dialog');
     console.log('Number of columns:', updatedColumnDefs.length);
-    
+
     // Make sure we have valid column definitions
     if (!updatedColumnDefs || !Array.isArray(updatedColumnDefs) || updatedColumnDefs.length === 0) {
       console.error('Invalid column definitions received:', updatedColumnDefs);
       toast.error('Error updating column settings: Invalid column definitions');
       return;
     }
-    
+
     // Debug the columns we're about to set
     updatedColumnDefs.forEach((col, index) => {
       console.log(`Column ${index}:`, col.field || col.colId, 'headerName:', col.headerName);
     });
-    
+
     // Update the column definitions state
     setCurrentColumnDefs(updatedColumnDefs);
     console.log('Column definitions state updated');
-    
+
+    // Apply the changes to the AG-Grid instance
+    if (gridRef.current?.api) {
+      console.log('Applying column definitions to AG-Grid');
+      // Set the flag to prevent infinite loops during column changes
+      setApplyingColumnChanges(true);
+
+      try {
+        // Apply the column definitions to the grid using AG-Grid 33+ API
+        gridRef.current.api.setGridOption('columnDefs', updatedColumnDefs);
+        console.log('Column definitions applied to AG-Grid successfully');
+
+        // Save the column definitions to the dialog settings in the store
+        // This ensures that the dialog settings are updated when the user applies changes
+        setDialogSettings({
+          ...dialogSettings,
+          columnSettings: {
+            columnDefs: updatedColumnDefs
+          }
+        });
+        console.log('Column settings saved to dialog settings in store');
+      } catch (error) {
+        console.error('Error applying column definitions to AG-Grid:', error);
+      }
+
+      // Reset the flag after a short delay
+      setTimeout(() => {
+        setApplyingColumnChanges(false);
+      }, 100);
+    } else {
+      console.warn('Grid API not available, column definitions not applied to AG-Grid');
+    }
+
     // If we have a profile selected, also save these changes to the profile
     if (selectedProfileId && gridRef.current?.api) {
       console.log('Saving column changes to profile:', selectedProfileId);
       // Get the current column state from the grid
       const currentColumnState = gridRef.current.api.getColumnState();
-      
+
       // Save the settings to the profile
       saveSettingsToProfile(gridSettings, currentColumnState);
     }
   };
-  
+
   // Helper function to save settings to the current profile
   const saveSettingsToProfile = (settings: any, columnState: any[]) => {
     if (!gridRef.current || !gridRef.current.api) {
@@ -970,10 +655,10 @@ function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
 
     try {
       const gridApi = gridRef.current.api;
-      
+
       // Get current filter model
       const filterModel = gridApi.getFilterModel ? gridApi.getFilterModel() : {};
-      
+
       // Get sort model from column state
       const sortModel = columnState
         .filter(col => col.sort !== null && col.sort !== undefined)
@@ -982,20 +667,20 @@ function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
           sort: col.sort,
           sortIndex: col.sortIndex
         }));
-      
+
       // Get the current profile to preserve any existing settings
       const currentProfile = profiles.find(p => p.id === selectedProfileId);
       if (!currentProfile) {
         console.warn('Selected profile not found, cannot save settings');
         return;
       }
-      
+
       // Merge current profile settings with new settings
       const mergedSettings = {
         ...currentProfile.settings,  // Start with all existing settings
         ...settings                  // Override with any new settings
       };
-      
+
       console.log('Auto-saving settings to profile:', {
         profileId: selectedProfileId,
         settingsCount: Object.keys(mergedSettings).length,
@@ -1003,13 +688,15 @@ function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
         hasFilterModel: !!filterModel,
         sortModelCount: sortModel.length
       });
-      
+
       // Use the updateCurrentProfile function directly
+      // Include dialog settings to ensure they're saved to the profile
       updateCurrentProfile(
         mergedSettings,
         columnState,
         filterModel,
-        sortModel
+        sortModel,
+        dialogSettings // Pass dialog settings to be saved in the profile
       );
     } catch (error) {
       console.error('Error saving settings to profile:', error);
@@ -1028,7 +715,7 @@ function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
       // In AG-Grid 33+, enableRowGroup must only be used at column level, not grid level
       enableRowGroup: gridSettings.enableRowGroup
     };
-    
+
     // Use type assertion for the entire object to avoid specific property conflicts
     const gridOptions = {
       // Display and Layout
@@ -1036,99 +723,120 @@ function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
       rowHeight: gridSettings.rowHeight,
       domLayout: gridSettings.domLayout,
       suppressRowHoverHighlight: gridSettings.suppressRowHoverHighlight,
-      // Use valid suppressCellFocus instead of invalid suppressCellSelection
-      suppressCellFocus: gridSettings.suppressCellFocus !== undefined ? 
-                        gridSettings.suppressCellFocus :
-                        gridSettings.suppressCellSelection,
-      // Using separate rowSelection object for selection settings
+      columnHoverHighlight: gridSettings.columnHoverHighlight,
+      suppressCellFocus: gridSettings.suppressCellFocus,
       suppressScrollOnNewData: gridSettings.suppressScrollOnNewData,
-      // These are initial properties that cannot be changed after initialization
-      // suppressColumnVirtualisation, suppressRowVirtualisation, ensureDomOrder should only be set on initial mount
       alwaysShowVerticalScroll: gridSettings.alwaysShowVerticalScroll,
-      // enableRtl is an initial property that cannot be changed after initialization
       suppressColumnMoveAnimation: gridSettings.suppressColumnMoveAnimation,
       floatingFiltersHeight: gridSettings.floatingFilter ? 35 : 0,
-      
+
+      // Accessibility settings
+      suppressColumnVirtualisation: gridSettings.suppressColumnVirtualisation,
+      suppressRowVirtualisation: gridSettings.suppressRowVirtualisation,
+      ensureDomOrder: gridSettings.ensureDomOrder,
+
+      // Overlay settings
+      overlayNoRowsTemplate: gridSettings.overlayNoRowsTemplate || 'No rows to display',
+      overlayLoadingTemplate: gridSettings.overlayLoadingTemplate || 'Loading...',
+
+      // Row Model
+      rowModelType: gridSettings.rowModelType || 'clientSide',
+      serverSideStoreType: gridSettings.rowModelType === 'serverSide' ?
+                          (gridSettings.serverSideStoreType || 'partial') :
+                          undefined,
+
       // Data and State
       pagination: gridSettings.pagination,
       paginationPageSize: gridSettings.paginationPageSize,
-      // Remove cacheBlockSize (not valid with clientSide row model)
-      // Using cellSelection on component props directly
+      paginationAutoPageSize: gridSettings.paginationAutoPageSize,
+
+      // Selection
+      rowSelection: gridSettings.rowSelection || 'none',
+      suppressRowClickSelection: gridSettings.suppressRowClickSelection,
+
+      // Row Drag & Drop
       suppressRowDrag: gridSettings.suppressRowDrag,
-      suppressMovableColumns: gridSettings.suppressMovableColumns,
-      // Use resetRowDataOnUpdate instead of invalid immutableData/deltaRowDataMode
-      resetRowDataOnUpdate: gridSettings.resetRowDataOnUpdate !== undefined ?
-                          gridSettings.resetRowDataOnUpdate :
-                          !gridSettings.immutableData,
-      rowBuffer: gridSettings.rowBuffer,
       rowDragManaged: gridSettings.rowDragManaged,
-      // Use asyncTransactionWaitMillis (handled via component props)
-      
+      suppressMovableColumns: gridSettings.suppressMovableColumns,
+
+      // Data Management
+      resetRowDataOnUpdate: gridSettings.resetRowDataOnUpdate,
+      rowBuffer: gridSettings.rowBuffer,
+      asyncTransactionWaitMillis: gridSettings.asyncTransactionWaitMillis,
+      suppressPropertyNamesCheck: gridSettings.suppressPropertyNamesCheck,
+
+      // Clipboard
+      enableClipboard: gridSettings.enableClipboard,
+      clipboardDelimiter: gridSettings.clipboardDelimiter,
+      suppressCopyRowsToClipboard: gridSettings.suppressCopyRowsToClipboard,
+      suppressLastEmptyLineOnPaste: gridSettings.suppressLastEmptyLineOnPaste,
+
       // Editing
       editType: gridSettings.editType,
       singleClickEdit: gridSettings.singleClickEdit,
       suppressClickEdit: gridSettings.suppressClickEdit,
-      // Using enterNavigatesVertically and enterNavigatesVerticallyAfterEdit directly in component props
-      // undoRedoCellEditing is an initial property that should be set only at initialization
-      // Initial properties that can't be updated are handled in component props
-      
+      enterNavigatesVertically: gridSettings.enterNavigatesVertically,
+      enterNavigatesVerticallyAfterEdit: gridSettings.enterNavigatesVerticallyAfterEdit,
+      stopEditingWhenCellsLoseFocus: gridSettings.stopEditingWhenCellsLoseFocus,
+
       // Filtering
       suppressMenuHide: gridSettings.suppressMenuHide,
       quickFilterText: gridSettings.quickFilterText,
-      // cacheQuickFilter is an initial property handled in component props
-      
+      cacheQuickFilter: gridSettings.cacheQuickFilter,
+      floatingFilter: gridSettings.floatingFilter,
+
       // Appearance
       animateRows: gridSettings.animateRows,
-      // enableBrowserTooltips is an initial property handled in component props
+      enableBrowserTooltips: gridSettings.enableBrowserTooltips,
       suppressContextMenu: gridSettings.suppressContextMenu,
-      // Using rowSelection object for copy settings
       enableCellTextSelection: gridSettings.enableCellTextSelection,
-      // Cell flash properties handled in component props
+      cellFlashDuration: gridSettings.cellFlashDuration,
+      cellFadeDuration: gridSettings.cellFadeDuration,
       tooltipShowDelay: gridSettings.tooltipShowDelay,
       tooltipHideDelay: gridSettings.tooltipHideDelay,
-      
+
       // Row Grouping
       groupDefaultExpanded: gridSettings.groupDefaultExpanded,
       groupDisplayType: gridSettings.groupDisplayType,
-      // Using groupTotalRow and grandTotalRow directly in component props
+      groupTotalRow: gridSettings.groupTotalRow,
+      grandTotalRow: gridSettings.grandTotalRow,
       showOpenedGroup: gridSettings.showOpenedGroup,
       rowGroupPanelShow: gridSettings.rowGroupPanelShow,
-      // removing invalid enableRowGroup (must be in defaultColDef only in AG-Grid 33+)
       suppressDragLeaveHidesColumns: gridSettings.suppressDragLeaveHidesColumns,
-      
+
       // Sorting
       multiSortKey: gridSettings.multiSortKey,
       accentedSort: gridSettings.accentedSort,
-      // unSortIcon is moved to defaultColDef
-      
+      unSortIcon: gridSettings.unSortIcon,
+
+      // Localization
+      locale: gridSettings.locale,
+
       // Export/Import
       suppressCsvExport: gridSettings.suppressCsvExport,
       suppressExcelExport: gridSettings.suppressExcelExport,
-      
+
       // Column Controls
       autoSizePadding: gridSettings.autoSizePadding,
-      // Ensure colResizeDefault is only 'shift' if used
       colResizeDefault: gridSettings.colResizeDefault === 'shift' ? 'shift' : undefined,
       maintainColumnOrder: gridSettings.maintainColumnOrder,
-      
+
       // Advanced
       enableCharts: gridSettings.enableCharts,
-      // Removing invalid suppressAriaColCount and suppressAriaRowCount
-      
-      // Advanced Filtering
       excludeChildrenWhenTreeDataFiltering: gridSettings.excludeChildrenWhenTreeDataFiltering,
-      
+      // Removing invalid suppressAriaColCount and suppressAriaRowCount
+
       // Set the updated defaultColDef that includes sortingOrder
       defaultColDef: updatedDefaultColDef,
     } as any; // Cast the entire result to avoid TypeScript type issues
-    
+
     return gridOptions;
   };
 
   // Debug helper to log column width changes
   const logColumnWidths = (gridApi: any, message: string) => {
     if (!gridApi) return;
-    
+
     try {
       // In AG-Grid 33+, use gridApi.getColumnState()
       const columnState = gridApi.getColumnState ? gridApi.getColumnState() : [];
@@ -1148,12 +856,12 @@ function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
     if (validateRowSelectionType(gridSettings.rowSelection)) {
       console.log('DataTable rowSelection is valid:', gridSettings.rowSelection);
     } else {
-      console.warn('DataTable rowSelection is INVALID:', 
-        typeof gridSettings.rowSelection === 'object' 
+      console.warn('DataTable rowSelection is INVALID:',
+        typeof gridSettings.rowSelection === 'object'
           ? JSON.stringify(gridSettings.rowSelection)
           : gridSettings.rowSelection
       );
-      
+
       // Check specific issues with the rowSelection
       if (!gridSettings.rowSelection) {
         console.warn('rowSelection is null or undefined');
@@ -1164,53 +872,69 @@ function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
       } else if (gridSettings.rowSelection.type !== 'singleRow' && gridSettings.rowSelection.type !== 'multiRow') {
         console.warn('rowSelection.type has invalid value:', gridSettings.rowSelection.type);
       }
-      
+
       console.log('Will use fallback rowSelection:', getValidRowSelection(gridSettings.rowSelection));
     }
   }, [gridSettings.rowSelection]);
 
   // Add a retry mechanism for initial profile loading
+  // Using a ref to track if we've already retried this profile
+  const retriedProfileRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (gridReady && selectedProfileId && gridRef.current?.api) {
-      // Check if profile settings are already applied - if not, try again
-      const currentSettings = gridRef.current.api.getGridOption('domLayout');
-      const selectedProfile = profiles.find(p => p.id === selectedProfileId);
-      
-      if (selectedProfile?.settings && 
-          selectedProfile.settings.domLayout !== currentSettings) {
-        
-        console.log('Detected settings mismatch, retrying profile load:', {
-          profileDomLayout: selectedProfile.settings.domLayout,
-          currentDomLayout: currentSettings
-        });
-        
-        // Try loading again with a small delay
-        setTimeout(() => {
-          (async () => {
-            try {
-              console.log('Retrying profile load for ID:', selectedProfileId);
-              const profile = await loadProfileById(selectedProfileId, gridRef.current?.api);
-              if (profile) {
-                console.log('Profile successfully loaded on retry:', profile.name);
-                
-                // Update the gridSettings state with the profile settings
-                if (profile.settings) {
-                  console.log('Updating gridSettings state from profile loaded on retry');
-                  setSettings(profile.settings);
-                }
-              } else {
-                console.error('Profile not found or could not be loaded on retry');
-              }
-            } catch (err) {
-              const errorMessage = err instanceof Error ? err.message : String(err);
-              console.error('Error in retry profile load:', errorMessage);
-              toast.error('Error loading profile on retry: ' + errorMessage);
-            }
-          })();
-        }, 100);
-      }
+    // Skip if conditions aren't met or if we've already retried this profile
+    if (!gridReady || !selectedProfileId || !gridRef.current?.api ||
+        retriedProfileRef.current === selectedProfileId) {
+      return;
     }
-  }, [gridReady, selectedProfileId, profiles, loadProfileById]);
+
+    // Check if profile settings are already applied - if not, try again
+    const currentSettings = gridRef.current.api.getGridOption('domLayout');
+    const selectedProfile = profiles.find(p => p.id === selectedProfileId);
+
+    if (selectedProfile?.settings &&
+        selectedProfile.settings.domLayout !== currentSettings) {
+
+      console.log('Detected settings mismatch, retrying profile load:', {
+        profileDomLayout: selectedProfile.settings.domLayout,
+        currentDomLayout: currentSettings
+      });
+
+      // Update the ref to track this retry
+      retriedProfileRef.current = selectedProfileId;
+
+      // Try loading again with a small delay
+      const timeoutId = setTimeout(() => {
+        (async () => {
+          try {
+            console.log('Retrying profile load for ID:', selectedProfileId);
+            // Don't show notification for retry profile loads
+            const profile = await loadProfileById(selectedProfileId, gridRef.current?.api, false);
+            if (profile) {
+              console.log('Profile successfully loaded on retry:', profile.name);
+
+              // Update the gridSettings state with the profile settings
+              if (profile.settings) {
+                console.log('Updating gridSettings state from profile loaded on retry');
+                // Commented out to prevent loops
+                // setSettings(profile.settings);
+              }
+            } else {
+              console.error('Profile not found or could not be loaded on retry');
+            }
+          } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            console.error('Error in retry profile load:', errorMessage);
+            // Don't show toast to prevent potential loops
+            // toast.error('Error loading profile on retry: ' + errorMessage);
+          }
+        })();
+      }, 100);
+
+      // Clean up timeout if component unmounts
+      return () => clearTimeout(timeoutId);
+    }
+  }, [gridReady, selectedProfileId, profiles]); // Removed loadProfileById from deps
 
   // Debug logging for grid settings changes
   useEffect(() => {
@@ -1223,40 +947,25 @@ function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
     });
   }, [gridSettings]);
 
-  // Additional event handlers for better column state tracking
-  const onColumnResized = (event: any) => {
-    console.log('Column resized, updating state');
-    if (event.api && !isApplyingColumnChanges) {
-      // Don't update immediately during resize to avoid performance issues
-      // Use a debounce approach to only update when resize is complete
-      if (event.finished) {
-        setColumnState(event.api.getColumnState());
-      }
-    }
-  };
+  // We don't need column resize event handlers
+  // Column state is only saved when explicitly saving a profile
 
-  const onGridSizeChanged = (event: any) => {
-    // Handle grid size changes that might affect column state
-    if (event.api) {
-      logColumnWidths(event.api, 'Grid size changed - current column widths');
-    }
-  };
+  // We don't need grid size change event handlers either
+  // Column state is only saved when explicitly saving a profile
 
   return (
     <div className="flex h-full flex-col rounded-md border bg-card">
       {/* Toast notifications for profile actions */}
       <Toaster position="top-right" />
-      
+
       {/* Main Toolbar */}
       <div className="flex flex-col border-b bg-gray-50/50 dark:bg-gray-800/50">
         {/* Upper Toolbar */}
         <div className="flex h-[60px] items-center justify-between px-4">
           <div className="flex items-center space-x-2">
             {/* Profile Management Controls */}
-            <ProfileManagerUI 
-              gridRef={gridRef} 
-              gridSettings={gridSettings}
-              onSettingsChange={setSettings}
+            <ProfileManagerUI
+              gridRef={gridRef}
             />
           </div>
 
@@ -1318,7 +1027,7 @@ function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
             <DropdownMenuContent className="w-56">
               <DropdownMenuLabel>Settings</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              
+
               <DropdownMenuGroup>
                 <DropdownMenuItem onClick={() => {
                   console.log('Opening General Settings with gridSettings:', {
@@ -1345,9 +1054,9 @@ function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
                   <span>Column Settings</span>
                 </DropdownMenuItem>
               </DropdownMenuGroup>
-              
+
               <DropdownMenuSeparator />
-              
+
               <DropdownMenuGroup>
                 <DropdownMenuItem>
                   <Copy className="mr-2 h-4 w-4" />
@@ -1355,9 +1064,9 @@ function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
                   <DropdownMenuShortcut>⌘C</DropdownMenuShortcut>
                 </DropdownMenuItem>
               </DropdownMenuGroup>
-              
+
               <DropdownMenuSeparator />
-              
+
               <DropdownMenuGroup>
                 <DropdownMenuItem>
                   <FileInput className="mr-2 h-4 w-4" />
@@ -1368,9 +1077,9 @@ function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
                   <span>Export Settings</span>
                 </DropdownMenuItem>
               </DropdownMenuGroup>
-              
+
               <DropdownMenuSeparator />
-              
+
               <DropdownMenuGroup>
                 <DropdownMenuSub>
                   <DropdownMenuSubTrigger>
@@ -1416,33 +1125,30 @@ function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
         defaultColDef={defaultColDef}
         sideBar={true}
         onGridReady={onGridReady}
-        onColumnMoved={onColumnMoved}
-        onFilterChanged={onFilterChanged}
-        onSortChanged={onSortChanged}
-        onColumnResized={onColumnResized}
-        onGridSizeChanged={onGridSizeChanged}
+        // We don't automatically update the store when grid state changes
+        // The store is only updated when explicitly saving a profile
         // Use rowSelection object format to avoid deprecation warnings
         rowSelection={getValidRowSelection(gridSettings.rowSelection)}
         // For flash effects - use proper duration properties instead of enableCellChangeFlash
-        cellFlashDuration={gridSettings.cellFlashDuration !== undefined 
-          ? gridSettings.cellFlashDuration 
+        cellFlashDuration={gridSettings.cellFlashDuration !== undefined
+          ? gridSettings.cellFlashDuration
           : (gridSettings.enableCellChangeFlash ? 1000 : 0)}
-        cellFadeDuration={gridSettings.cellFadeDuration !== undefined 
-          ? gridSettings.cellFadeDuration 
+        cellFadeDuration={gridSettings.cellFadeDuration !== undefined
+          ? gridSettings.cellFadeDuration
           : (gridSettings.enableCellChangeFlash ? 500 : 0)}
         // Use valid grouping options
-        groupTotalRow={gridSettings.groupTotalRow !== undefined 
-          ? gridSettings.groupTotalRow 
+        groupTotalRow={gridSettings.groupTotalRow !== undefined
+          ? gridSettings.groupTotalRow
           : gridSettings.groupIncludeFooter}
-        grandTotalRow={gridSettings.grandTotalRow !== undefined 
-          ? gridSettings.grandTotalRow 
+        grandTotalRow={gridSettings.grandTotalRow !== undefined
+          ? gridSettings.grandTotalRow
           : gridSettings.groupIncludeTotalFooter}
         // Use proper navigation properties
-        enterNavigatesVertically={gridSettings.enterNavigatesVertically !== undefined 
-          ? gridSettings.enterNavigatesVertically 
+        enterNavigatesVertically={gridSettings.enterNavigatesVertically !== undefined
+          ? gridSettings.enterNavigatesVertically
           : gridSettings.enterMovesDown}
-        enterNavigatesVerticallyAfterEdit={gridSettings.enterNavigatesVerticallyAfterEdit !== undefined 
-          ? gridSettings.enterNavigatesVerticallyAfterEdit 
+        enterNavigatesVerticallyAfterEdit={gridSettings.enterNavigatesVerticallyAfterEdit !== undefined
+          ? gridSettings.enterNavigatesVerticallyAfterEdit
           : gridSettings.enterMovesDownAfterEdit}
         // Initial properties that should be set only once at initialization
         undoRedoCellEditingLimit={gridSettings.undoRedoCellEditingLimit}
@@ -1451,16 +1157,16 @@ function DataTableInner<TData, TValue>({ data }: { data: TData[] }) {
         enableBrowserTooltips={gridSettings.enableBrowserTooltips}
         // Use cellSelection instead of deprecated range properties
         cellSelection={gridSettings.cellSelection || {
-          handle: gridSettings.enableFillHandle ? 'fill' : 
+          handle: gridSettings.enableFillHandle ? 'fill' :
                 (gridSettings.enableRangeHandle ? 'range' : true)
         }}
         // Use async transaction wait millis instead of batch update wait millis
-        asyncTransactionWaitMillis={gridSettings.asyncTransactionWaitMillis !== undefined 
-          ? gridSettings.asyncTransactionWaitMillis 
+        asyncTransactionWaitMillis={gridSettings.asyncTransactionWaitMillis !== undefined
+          ? gridSettings.asyncTransactionWaitMillis
           : gridSettings.batchUpdateWaitMillis}
         // Use cell focus property
-        suppressCellFocus={gridSettings.suppressCellFocus !== undefined 
-          ? gridSettings.suppressCellFocus 
+        suppressCellFocus={gridSettings.suppressCellFocus !== undefined
+          ? gridSettings.suppressCellFocus
           : gridSettings.suppressCellSelection}
         // Use the getGridOptionsFromSettings function which handles all other options
         {...getGridOptionsFromSettings()}

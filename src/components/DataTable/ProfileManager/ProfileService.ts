@@ -18,6 +18,7 @@ export interface GridProfile {
   columnState: any[];       // Column widths, visibility, order, etc.
   filterModel?: any;        // Current filter state
   sortModel?: any[];        // Current sort state
+  dialogSettings?: any;     // Settings from dialog boxes (column settings, general settings, etc.)
   createdAt: string;
   updatedAt: string;
 }
@@ -75,6 +76,7 @@ export function getProfiles(): GridProfile[] {
       console.warn(`Found ${parsedData.length - validProfiles.length} invalid profiles which were filtered out`);
     }
 
+    // Return valid profiles
     return validProfiles;
   } catch (error) {
     console.error("Error loading profiles from localStorage:", error);
@@ -120,7 +122,7 @@ export function createProfile(
   sortModel: any[]
 ): GridProfile {
   const now = new Date().toISOString();
-  
+
   return {
     id: generateProfileId(),
     name: name.trim(),
@@ -142,7 +144,8 @@ export function updateProfile(
   settings: GridSettings,
   columnState: any[],
   filterModel: any,
-  sortModel: any[]
+  sortModel: any[],
+  dialogSettings?: any
 ): GridProfile {
   return {
     ...profile,
@@ -150,6 +153,7 @@ export function updateProfile(
     columnState,
     filterModel,
     sortModel,
+    dialogSettings, // Include dialog settings in the profile
     updatedAt: new Date().toISOString()
   };
 }
@@ -166,7 +170,7 @@ export function deleteProfile(profiles: GridProfile[], profileId: string): GridP
  */
 export function getDefaultProfile(profiles: GridProfile[]): GridProfile | undefined {
   if (profiles.length === 0) return undefined;
-  
+
   const defaultProfile = profiles.find(p => p.isDefault);
   return defaultProfile || profiles[0];
 }

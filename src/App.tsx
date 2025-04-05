@@ -3,6 +3,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { DataTableWithProfiles } from "@/components/DataTable/data-table";
+import { ProfileNotificationsProvider } from "@/components/DataTable/ProfileManager/ProfileNotificationsProvider.ultra";
 import { columns } from "@/components/DataTable/columns";
 
 // Example data
@@ -39,7 +40,9 @@ function App() {
         <div className="flex h-screen flex-col overflow-hidden">
           <Header />
           <main className="flex-1 container mx-auto p-5">
-            <DataTableWithProfiles columns={columns} data={data} />
+            <ProfileNotificationsProvider>
+              <DataTableWithProfiles columns={columns} data={data} />
+            </ProfileNotificationsProvider>
           </main>
           <Footer />
         </div>

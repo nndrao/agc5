@@ -63,7 +63,13 @@ This project demonstrates a simplified, centralized configuration system for AG-
    npm install
    ```
 
-2. Start the development server:
+2. Set up environment variables:
+   ```
+   cp .env.example .env.local
+   ```
+   Then edit `.env.local` to add your AG-Grid Enterprise license key.
+
+3. Start the development server:
    ```
    npm run dev
    ```
@@ -116,7 +122,7 @@ src/
 5. **Maintainability**:
    - Clear separation of concerns
    - Modular code organization
-   - Simplified data flow 
+   - Simplified data flow
 
 ## Technologies Used
 

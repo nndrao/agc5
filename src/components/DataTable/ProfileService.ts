@@ -4,11 +4,11 @@
  */
 
 import { GridSettings } from "./Settings/types";
-import { GridProfile } from "./DataTableContext";
+import { GridProfile } from "./ProfileManager/ProfileService";
 
 export class ProfileService {
   private STORAGE_KEY = 'ag-grid-profiles';
-  
+
   /**
    * Check if localStorage is available
    */
@@ -22,14 +22,14 @@ export class ProfileService {
       return false;
     }
   }
-  
+
   /**
    * Generate a unique ID for profiles
    */
   private generateProfileId(): string {
     return `${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 11)}`;
   }
-  
+
   /**
    * Get all saved profiles from localStorage with proper error handling
    */
@@ -43,7 +43,7 @@ export class ProfileService {
       const profilesJson = localStorage.getItem(this.STORAGE_KEY);
       if (!profilesJson) {
         console.log("No profiles found in localStorage");
-        
+
         // Create and return default profile if no profiles exist
         const defaultProfile = this.createDefaultProfile();
         this.saveProfiles([defaultProfile]);
@@ -82,7 +82,7 @@ export class ProfileService {
       return validProfiles;
     } catch (error) {
       console.error("Error loading profiles from localStorage:", error);
-      
+
       // Create a default profile in case of error
       const defaultProfile = this.createDefaultProfile();
       try {
@@ -90,7 +90,7 @@ export class ProfileService {
       } catch (e) {
         console.error("Failed to save default profile:", e);
       }
-      
+
       return [defaultProfile];
     }
   }
@@ -126,7 +126,7 @@ export class ProfileService {
    */
   createDefaultProfile(): GridProfile {
     const now = new Date().toISOString();
-    
+
     // Import from defaultGridSettings would be better here
     const defaultSettings: any = {
       // Default settings would go here - simplified for brevity
@@ -138,7 +138,7 @@ export class ProfileService {
       animateRows: true,
       // Additional default settings would be added here
     };
-    
+
     return {
       id: this.generateProfileId(),
       name: 'Default Profile',
@@ -165,7 +165,7 @@ export class ProfileService {
     sortModel: any[]
   ): Promise<GridProfile> {
     const now = new Date().toISOString();
-    
+
     return {
       id: this.generateProfileId(),
       name: name.trim(),
@@ -204,7 +204,7 @@ export class ProfileService {
    */
   getDefaultProfile(profiles: GridProfile[]): GridProfile | undefined {
     if (profiles.length === 0) return undefined;
-    
+
     const defaultProfile = profiles.find(p => p.isDefault);
     return defaultProfile || profiles[0];
   }
@@ -218,4 +218,4 @@ export class ProfileService {
       isDefault: profile.id === profileId
     }));
   }
-} 
+}
